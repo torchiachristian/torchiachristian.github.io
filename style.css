@@ -57,6 +57,22 @@ a:hover {
     border-bottom: 1px solid #000;
 }
 
+.github-btn {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 8px 14px;
+    background-color: #24292e;
+    color: #ffffff;
+    text-decoration: none;
+    font-size: 0.9rem;
+    border-radius: 6px;
+    transition: background-color 0.2s ease;
+}
+
+.github-btn:hover {
+    background-color: #0366d6;
+}
+
 p {
     margin: 15px 0;
 }
