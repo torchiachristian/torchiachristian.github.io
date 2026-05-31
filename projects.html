@@ -2,100 +2,95 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="X-Frame-Options" content="DENY">
+    <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
+    <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=()">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self' 'unsafe-inline';">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Projects - Christian Torchia</title>
     <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="lang-it">
 
 <div class="nav">
     <a href="/">home</a>
     <a href="/about.html">about</a>
     <a href="/projects.html">projects</a>
+    <a href="/writeups.html">writeups</a>
+    <button class="lang-toggle" onclick="toggleLang(this)">EN</button>
 </div>
 
 <h1>Projects</h1>
 
+<p class="projects-section-title">— <span data-lang="it">Progetti principali</span><span data-lang="en">Main projects</span></p>
+
 <div class="project">
-    <h3>VulnScan</h3>
-    <p>
-        Automated web vulnerability scanner with integrated nmap, nikto, and sqlmap engines. Features Flask dashboard for real-time scan monitoring, vulnerability classification system, and automated PDF report generation. Tested against DVWA and production environments with configurable scan profiles.
-        <a href="https://github.com/torchiachristian/VulnScan" target="_blank">
-            https://github.com/torchiachristian/VulnScan
-        </a>
-    </p>
+    <h3>VulnScan <span style="font-size:0.75em;font-weight:normal;color:#555;">· Python · Flask · nmap · nikto · sqlmap · 2025</span></h3>
+    <p data-lang="it">Scanner automatizzato per vulnerabilità web con motori nmap, nikto e sqlmap integrati. Dashboard Flask per il monitoraggio delle scansioni in tempo reale, sistema di classificazione delle vulnerabilità e generazione automatica di report PDF. Testato su DVWA e ambienti con profili di scansione configurabili.</p>
+    <p data-lang="en">Automated web vulnerability scanner with integrated nmap, nikto, and sqlmap engines. Flask dashboard for real-time scan monitoring, vulnerability classification system, and automated PDF report generation. Tested against DVWA with configurable scan profiles.</p>
+    <a class="github-btn" href="https://github.com/torchiachristian/VulnScan" target="_blank">GitHub →</a>
 </div>
 
 <div class="project">
-    <h3>AD-Attack Toolkit</h3>
-    <p>
-        Active Directory penetration testing automation framework. Implements AS-REP Roasting, Kerberoasting, and Pass-the-Hash attacks with integrated Hashcat support. Features automated enumeration via ldap3/Impacket, credential dumping, and professional PDF reporting. Includes complete VirtualBox lab setup with Windows Server 2019 DC and Windows 10 clients.
-        <a href="https://github.com/torchiachristian/AD-Attack-Toolkit" target="_blank">
-            https://github.com/torchiachristian/AD-Attack-Toolkit
-        </a>
-    </p>
+    <h3>AD-Attack Toolkit <span style="font-size:0.75em;font-weight:normal;color:#555;">· Python · Impacket · ldap3 · Hashcat · 2025</span></h3>
+    <p data-lang="it">Framework di automazione per il pen test su Active Directory. Implementa AS-REP Roasting, Kerberoasting e Pass-the-Hash con supporto Hashcat integrato. Enumerazione automatizzata via ldap3/Impacket, credential dumping e report PDF. Include setup completo del lab VirtualBox con Windows Server 2019 DC e client Windows 10.</p>
+    <p data-lang="en">Active Directory penetration testing automation framework. Implements AS-REP Roasting, Kerberoasting, and Pass-the-Hash with integrated Hashcat support. Automated enumeration via ldap3/Impacket, credential dumping, and PDF reporting. Includes full VirtualBox lab setup with Windows Server 2019 DC and Windows 10 clients.</p>
+    <a class="github-btn" href="https://github.com/torchiachristian/AD-Attack-Toolkit" target="_blank">GitHub →</a>
 </div>
+
 <div class="project">
-    <h3>HomeNetMonitor</h3>
-    <p>
-        Real-time home network monitoring dashboard with device detection and anomaly alerts. Built with Python/Flask, implements packet sniffing (scapy), network scanning (nmap), bandwidth monitoring, and anomaly detection. Features live web dashboard with Chart.js graphs for traffic visualization and 7-day connection timeline.
-        <a href="https://github.com/torchiachristian/HomeNetMonitor" target="_blank">
-            https://github.com/torchiachristian/HomeNetMonitor
-        </a>
-    </p>
+    <h3>HomeNetMonitor <span style="font-size:0.75em;font-weight:normal;color:#555;">· Python · Flask · Scapy · nmap · Chart.js · 2025</span></h3>
+    <p data-lang="it">Dashboard di monitoraggio di rete domestica in tempo reale con rilevamento dispositivi e alert anomalie. Packet sniffing con Scapy, scansione nmap, monitoraggio banda e rilevamento anomalie. Dashboard web live con grafici Chart.js e timeline connessioni a 7 giorni.</p>
+    <p data-lang="en">Real-time home network monitoring dashboard with device detection and anomaly alerts. Built with Python/Flask, implements packet sniffing (Scapy), network scanning (nmap), bandwidth monitoring, and anomaly detection. Live web dashboard with Chart.js graphs and 7-day connection timeline.</p>
+    <a class="github-btn" href="https://github.com/torchiachristian/HomeNetMonitor" target="_blank">GitHub →</a>
 </div>
-    
+
+<div class="project">
+    <h3>habit_tracker <span style="font-size:0.75em;font-weight:normal;color:#555;">· Python · Tkinter · SQLite · 2024</span></h3>
+    <p data-lang="it">Applicazione desktop per il tracciamento delle abitudini con backend SQLite. Grafici percentuali e monitoraggio progressi giornalieri.</p>
+    <p data-lang="en">Desktop habit tracking app with SQLite backend. Percentage graphs and daily progress monitoring.</p>
+    <a class="github-btn" href="https://github.com/torchiachristian/habit-tracker" target="_blank">GitHub →</a>
+</div>
+
+<p class="projects-section-title">— <span data-lang="it">Script / tool minori</span><span data-lang="en">Scripts / small tools</span></p>
+
 <div class="project">
     <h3>port_scanner</h3>
-    <p>
-        Fast multithreaded TCP port scanner built in Python. Designed for efficient network reconnaissance with configurable thread pools and timeout settings.
-        <a href="https://github.com/torchiachristian/port_scanner" target="_blank">
-            https://github.com/torchiachristian/port_scanner
-        </a>
-    </p>
+    <p data-lang="it">Scanner TCP multithreaded in Python con thread pool configurabile e timeout personalizzabili.</p>
+    <p data-lang="en">Fast multithreaded TCP port scanner in Python with configurable thread pools and timeout settings.</p>
+    <a class="github-btn" href="https://github.com/torchiachristian/port_scanner" target="_blank">GitHub →</a>
 </div>
 
 <div class="project">
     <h3>password_strength_checker</h3>
-    <p>
-        Python tool to analyze password strength with entropy estimation. Implements common password vulnerability checks and provides detailed security metrics.
-        <a href="https://github.com/torchiachristian/password_strength_checker" target="_blank">
-            https://github.com/torchiachristian/password_strength_checker
-        </a>
-    </p>
-</div>
-
-<div class="project">
-    <h3>simple_file_hash_checker_1</h3>
-    <p>
-        Python script to compute MD5, SHA1, and SHA256 hashes of files for integrity verification. Useful for forensic analysis and file validation.
-        <a href="https://github.com/torchiachristian/simple_file_hash_checker_1" target="_blank">
-            https://github.com/torchiachristian/simple_file_hash_checker_1
-        </a>
-    </p>
+    <p data-lang="it">Analizzatore di robustezza delle password con stima dell'entropia e controlli su pattern comuni.</p>
+    <p data-lang="en">Password strength analyzer with entropy estimation and common vulnerability checks.</p>
+    <a class="github-btn" href="https://github.com/torchiachristian/password_strength_checker" target="_blank">GitHub →</a>
 </div>
 
 <div class="project">
     <h3>mini_ping_sweeper</h3>
-    <p>
-        Python tool to scan local networks and identify active hosts using ICMP ping. Implements parallel scanning for efficient network discovery.
-        <a href="https://github.com/torchiachristian/mini_ping_sweeper" target="_blank">
-            https://github.com/torchiachristian/mini_ping_sweeper
-        </a>
-    </p>
+    <p data-lang="it">Tool Python per scoperta host attivi su rete locale via ICMP con scansione parallela.</p>
+    <p data-lang="en">Python tool to discover active hosts on local networks via ICMP with parallel scanning.</p>
+    <a class="github-btn" href="https://github.com/torchiachristian/mini_ping_sweeper" target="_blank">GitHub →</a>
 </div>
 
-<div class="project">
-    <h3>habit_tracker</h3>
-    <p>
-        Python/Tkinter application with SQLite backend for habit tracking. Features data visualization with percentage graphs and daily progress monitoring.
-        <a href="https://github.com/torchiachristian/habit-tracker" target="_blank">
-            https://github.com/torchiachristian/habit-tracker
-        </a>
-    </p>
-</div>
+<p><a href="/"><span data-lang="it">← Torna alla home</span><span data-lang="en">← Back to home</span></a></p>
 
-<p><a href="/">← Back to home</a></p>
-
+<script>
+function toggleLang(btn) {
+    const body = document.body;
+    if (body.classList.contains('lang-it')) {
+        body.classList.replace('lang-it', 'lang-en');
+        document.documentElement.lang = 'en';
+        btn.textContent = 'IT';
+    } else {
+        body.classList.replace('lang-en', 'lang-it');
+        document.documentElement.lang = 'it';
+        btn.textContent = 'EN';
+    }
+}
+</script>
 </body>
 </html>

@@ -2,29 +2,56 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="X-Frame-Options" content="DENY">
+    <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
+    <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=()">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self' 'unsafe-inline';">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>About - Christian Torchia</title>
     <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="lang-it">
+
 <div class="nav">
     <a href="/">home</a>
     <a href="/about.html">about</a>
     <a href="/projects.html">projects</a>
+    <a href="/writeups.html">writeups</a>
+    <button class="lang-toggle" onclick="toggleLang(this)">EN</button>
 </div>
 
-<h1>About Me</h1>
+<h1>About</h1>
 
-<p>Informatics & Telecommunications graduate with strong foundation in networking, Linux systems, and security fundamentals.</p>
+<div data-lang="it">
+    <p>Sono di Torino, ho un diploma in Informatica e Telecomunicazioni e da circa un anno mi sono orientato seriamente verso la cybersecurity offensiva.</p>
+    <p>Il punto di svolta è stato iniziare su HackTheBox: capire che rompere sistemi in modo controllato richiede metodo, non fortuna. Da lì ho costruito lab in locale con Active Directory su VirtualBox, ho iniziato a scrivere i miei tool in Python invece di usare solo quelli esistenti, e ho cominciato a documentare ogni macchina che risolvo.</p>
+    <p>Le aree su cui lavoro di più sono privilege escalation su Windows, attacchi Kerberos in ambienti AD, e automazione di fasi di ricognizione. Mi interessa capire come funzionano le cose prima di usarle — non solo eseguire exploit preconfezionati.</p>
+    <p>A ottobre cercherò un ITS in cybersecurity. Questo sito è il modo più diretto per mostrare dove sono arrivato.</p>
+</div>
 
-<p>Currently focused on developing practical cybersecurity skills through hands on projects and independent learning in ethical hacking methodologies.</p>
+<div data-lang="en">
+    <p>I'm from Turin. I have a diploma in Informatics and Telecommunications, and about a year ago I shifted my focus seriously toward offensive security.</p>
+    <p>The turning point was starting on HackTheBox: realizing that breaking systems in a controlled way requires method, not luck. From there I built local labs with Active Directory on VirtualBox, started writing my own tools in Python instead of just using existing ones, and began documenting every machine I solve.</p>
+    <p>The areas I work on most are Windows privilege escalation, Kerberos attacks in AD environments, and automating reconnaissance phases. I want to understand how things work before using them — not just run pre-packaged exploits.</p>
+    <p>In October I'll be looking for an ITS program in cybersecurity. This site is the most direct way to show where I've gotten to.</p>
+</div>
 
-<p>My technical approach combines theoretical knowledge with applied scripting and automation to solve real world infrastructure and security challenges.</p>
+<p><a href="/"><span data-lang="it">← Torna alla home</span><span data-lang="en">← Back to home</span></a></p>
 
-<p>I maintain a security first mindset while building tools that are both efficient and reliable for network analysis and system monitoring tasks.</p>
-
-<p>Outside of technical work, I believe in continuous learning and contributing to open source projects that enhance security awareness.</p>
-
-<p><a href="/">← Back to home</a></p>
+<script>
+function toggleLang(btn) {
+    const body = document.body;
+    if (body.classList.contains('lang-it')) {
+        body.classList.replace('lang-it', 'lang-en');
+        document.documentElement.lang = 'en';
+        btn.textContent = 'IT';
+    } else {
+        body.classList.replace('lang-en', 'lang-it');
+        document.documentElement.lang = 'it';
+        btn.textContent = 'EN';
+    }
+}
+</script>
 </body>
 </html>

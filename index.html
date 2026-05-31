@@ -2,42 +2,83 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="X-Frame-Options" content="DENY">
+    <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
+    <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=()">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self' 'unsafe-inline';">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Christian Torchia</title>
-    <style>
-        body { font-family: monospace; max-width: 800px; margin: 40px auto; padding: 0 20px; }
-        h1, h2 { border-bottom: 1px solid #ccc; padding-bottom: 5px; }
-        a { color: #000; text-decoration: none; border-bottom: 1px dashed #000; }
-        a:hover { border-bottom: 1px solid #000; }
-        .nav { margin: 20px 0; }
-        .nav a { margin-right: 15px; }
-        .project, .contact { margin: 15px 0; }
-        footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #ccc; font-size: 0.9em; color: #666; }
-    </style>
+    <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="lang-it">
+
     <h1>Christian Torchia</h1>
-    
+
     <div class="nav">
         <a href="/">home</a>
         <a href="/about.html">about</a>
         <a href="/projects.html">projects</a>
+        <a href="/writeups.html">writeups</a>
+        <button class="lang-toggle" onclick="toggleLang(this)">EN</button>
     </div>
 
-    <h2>Quick Info</h2>
-    <p>🎓 Informatics & Telecommunications Graduate</p>
-    <p>🐍 Python | Networking | Linux | Security Basics</p>
-    <p>🔐 Currently learning ethical hacking, scripting, and offensive security</p>
+    <div class="about-line">
+        <span data-lang="it">Sono uno studente di cybersecurity a Torino orientato verso il lato offensive. Studio e pratico sicurezza su ambienti Windows e Linux, con focus su Active Directory, privilege escalation e sviluppo di tool propri.</span>
+        <span data-lang="en">Cybersecurity student based in Turin, focused on offensive security. I study and practice on Windows and Linux environments, with a focus on Active Directory, privilege escalation, and building my own tools.</span>
+    </div>
 
-    <h2>Featured Projects</h2>
-    <p><strong>VulnScan:</strong> Automated web vulnerability scanner with integrated nmap, nikto, sqlmap engines and PDF reporting</p>
-    <p><strong>AD-Attack Toolkit:</strong> Active Directory penetration testing framework with AS-REP Roasting, Kerberoasting, Pass-the-Hash automation</p>
-    <p><strong>HomeNetMonitor:</strong> Real-time network monitoring with device detection, packet analysis, and anomaly alerts</p>
-    <p><a href="/projects.html">→ View all projects</a></p>
+    <h2>Skills &amp; Stack</h2>
+    <p data-lang="it">Diploma in Informatica e Telecomunicazioni</p>
+    <p data-lang="en">Informatics &amp; Telecommunications Graduate</p>
+    <p>Python &nbsp;|&nbsp; Networking &nbsp;|&nbsp; Linux &nbsp;|&nbsp; Active Directory &nbsp;|&nbsp; Kerberos &nbsp;|&nbsp; Flask &nbsp;|&nbsp; Scapy</p>
+    <p data-lang="it">Attualmente: ethical hacking, scripting offensivo, CTF su HackTheBox</p>
+    <p data-lang="en">Currently: ethical hacking, offensive scripting, CTF on HackTheBox</p>
+
+    <h2><span data-lang="it">Progetti in evidenza</span><span data-lang="en">Featured Projects</span></h2>
+
+    <div class="featured-project">
+        <p><strong>VulnScan</strong> <a class="gh-inline" href="https://github.com/torchiachristian/VulnScan" target="_blank">GitHub</a></p>
+        <p data-lang="it">Scanner automatizzato per vulnerabilità web con motori nmap, nikto e sqlmap integrati, dashboard Flask e report PDF.</p>
+        <p data-lang="en">Automated web vulnerability scanner with nmap, nikto, and sqlmap engines, Flask dashboard, and PDF reporting.</p>
+    </div>
+
+    <div class="featured-project">
+        <p><strong>AD-Attack Toolkit</strong> <a class="gh-inline" href="https://github.com/torchiachristian/AD-Attack-Toolkit" target="_blank">GitHub</a></p>
+        <p data-lang="it">Framework di pen test su Active Directory: AS-REP Roasting, Kerberoasting, Pass-the-Hash, lab VirtualBox incluso.</p>
+        <p data-lang="en">Active Directory penetration testing framework: AS-REP Roasting, Kerberoasting, Pass-the-Hash, VirtualBox lab included.</p>
+    </div>
+
+    <div class="featured-project">
+        <p><strong>HomeNetMonitor</strong> <a class="gh-inline" href="https://github.com/torchiachristian/HomeNetMonitor" target="_blank">GitHub</a></p>
+        <p data-lang="it">Dashboard di monitoraggio di rete in tempo reale con rilevamento dispositivi, analisi pacchetti e alert anomalie.</p>
+        <p data-lang="en">Real-time network monitoring dashboard with device detection, packet analysis, and anomaly alerts.</p>
+    </div>
+
+    <p><a href="/projects.html"><span data-lang="it">→ Tutti i progetti</span><span data-lang="en">→ All projects</span></a></p>
 
     <footer>
         <p>📧 christian.torchia.tech@gmail.com</p>
-        <p><a href="https://github.com/torchiachristian">GitHub</a> | <a href="https://linkedin.com/in/christian-torchia-4291093a8">LinkedIn</a> | <a href="https://reddit.com/u/christiantorchia">Reddit</a></p>
+        <div class="social-links">
+            <a href="https://github.com/torchiachristian" target="_blank">GitHub</a>
+            <a href="https://linkedin.com/in/christian-torchia-4291093a8" target="_blank">LinkedIn</a>
+            <a href="https://reddit.com/u/christiantorchia" target="_blank">Reddit</a>
+        </div>
     </footer>
+
+    <script>
+    function toggleLang(btn) {
+        const body = document.body;
+        if (body.classList.contains('lang-it')) {
+            body.classList.replace('lang-it', 'lang-en');
+            document.documentElement.lang = 'en';
+            btn.textContent = 'IT';
+        } else {
+            body.classList.replace('lang-en', 'lang-it');
+            document.documentElement.lang = 'it';
+            btn.textContent = 'EN';
+        }
+    }
+    </script>
 </body>
 </html>
