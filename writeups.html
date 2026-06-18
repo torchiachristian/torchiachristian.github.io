@@ -48,6 +48,96 @@
   <p data-lang="it">Writeup di macchine HackTheBox. Ogni entry documenta la catena di attacco completa: enumerazione, exploitation, privilege escalation.</p>
   <p data-lang="en">HackTheBox machine writeups. Each entry documents the full attack chain: enumeration, exploitation, privilege escalation.</p>
 
+<!-- ==================== SUPPORT ==================== -->
+  <div class="writeup-entry">
+    <div class="writeup-header" onclick="toggleWriteup(this)">
+      <h3>Support <span class="platform-badge">HTB</span></h3>
+      <span class="toggle-btn">[ expand ]</span>
+    </div>
+    <div class="writeup-meta">
+      2026-06-18 &nbsp;|&nbsp; OS: Windows &nbsp;|&nbsp;
+      Difficulty: <span class="difficulty-easy">Easy</span>
+    </div>
+    <div class="writeup-tags">
+      <span>win</span><span>AD</span><span>ldap</span><span>rbcd</span><span>kerberos</span><span>privesc</span>
+    </div>
+    <div class="writeup-download">
+      <a href="writeups-files/support.txt" target="_blank">↓ view writeup .txt</a>
+    </div>
+    <div class="writeup-collapsible">
+      <pre class="writeup-body" data-lang="it">
+Macchina Active Directory. Si parte da una share SMB anonima con un tool .NET interno.
+Catena: SMB anonimo → estrazione credenziali da binario .NET → ldap → password nel campo info LDAP → WinRM support → WRITE su DC$ → RBCD → S4U → Administrator.
+
+## Fase 1 — Ricognizione
+nmap su SMB. Share non standard "support-tools" accessibile in anonimo.
+Dominio: support.htb / DC: dc.support.htb
+
+## Fase 2 — Share anonima e analisi binario
+UserInfo.exe.zip nella share. È un tool .NET che interroga LDAP con credenziali cifrate.
+monodis estrae enc_password e key = "armando".
+
+## Fase 3 — Decifratura
+Diversi tentativi falliti con cifrari standard (AES-ECB/CBC, RC4).
+Schema reale: base64 decode + XOR con la chiave e una costante → password dell'account ldap.
+
+## Fase 4 — Enumerazione LDAP
+ldapsearch enumera 21 utenti. La password dell'account support è nascosta nel campo "info".
+→ Ironside47pleasure40Watchful
+
+## Fase 5 — WinRM come support
+support è in Remote Management Users. evil-winrm → shell. User flag.
+
+## Fase 6 — Ricerca privesc (con i fallimenti)
+support non è in gruppi privilegiati. Falliti: reset password Administrator, DCSync diretto,
+Kerberoasting (nessun SPN), AS-REP Roasting (nessun utente), scrittura GPO/SYSVOL.
+
+## Fase 7 — RBCD e accesso finale
+bloodyAD rivela DACL: WRITE su DC$. Combinato con SeMachineAccountPrivilege → RBCD.
+Creo un account computer, configuro RBCD su DC$, S4U per impersonare Administrator.
+getST.py → ticket → wmiexec → Administrator → root.
+DCSync finale dell'NTDS.DIT a conferma dell'impatto sull'intero dominio.
+      </pre>
+      <pre class="writeup-body" data-lang="en">
+Active Directory machine. Starts from an anonymous SMB share with an internal .NET tool.
+Chain: anonymous SMB → credential extraction from .NET binary → ldap → password in LDAP info field → WinRM support → WRITE on DC$ → RBCD → S4U → Administrator.
+
+## Phase 1 — Reconnaissance
+nmap on SMB. Non-standard share "support-tools" accessible anonymously.
+Domain: support.htb / DC: dc.support.htb
+
+## Phase 2 — Anonymous share and binary analysis
+UserInfo.exe.zip in the share. A .NET tool that queries LDAP with encrypted credentials.
+monodis extracts enc_password and key = "armando".
+
+## Phase 3 — Decryption
+Several failed attempts with standard ciphers (AES-ECB/CBC, RC4).
+Actual scheme: base64 decode + XOR with key and a constant → ldap account password.
+
+## Phase 4 — LDAP enumeration
+ldapsearch enumerates 21 users. The support account password is hidden in the "info" field.
+→ Ironside47pleasure40Watchful
+
+## Phase 5 — WinRM as support
+support is in Remote Management Users. evil-winrm → shell. User flag.
+
+## Phase 6 — Privesc hunt (with failures)
+support is in no privileged group. Failed: Administrator password reset, direct DCSync,
+Kerberoasting (no SPN), AS-REP Roasting (no users), GPO/SYSVOL write.
+
+## Phase 7 — RBCD and final access
+bloodyAD reveals DACL: WRITE on DC$. Combined with SeMachineAccountPrivilege → RBCD.
+Create a computer account, set RBCD on DC$, S4U to impersonate Administrator.
+getST.py → ticket → wmiexec → Administrator → root.
+Final NTDS.DIT DCSync confirming full-domain impact.
+      </pre>
+      <div class="writeup-image">
+        <img src="assets/writeups/support.png" alt="Support pwned">
+        <div class="img-caption">Proof of pwn</div>
+      </div>
+    </div>
+  </div>
+  
   <!-- ==================== LOGGING ==================== -->
   <div class="writeup-entry">
     <div class="writeup-header" onclick="toggleWriteup(this)">
