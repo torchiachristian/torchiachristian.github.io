@@ -48,6 +48,95 @@
   <p data-lang="it">Writeup di macchine HackTheBox. Ogni entry documenta la catena di attacco completa: enumerazione, exploitation, privilege escalation.</p>
   <p data-lang="en">HackTheBox machine writeups. Each entry documents the full attack chain: enumeration, exploitation, privilege escalation.</p>
 
+  <!-- ==================== AD ATTACK TOOLKIT — LAB TEST ==================== -->
+  <div class="writeup-entry">
+    <div class="writeup-header" onclick="toggleWriteup(this)">
+      <h3>AD Attack Toolkit — test su dominio nuovo <span class="platform-badge" style="background:#1d4ed8;">LAB</span></h3>
+      <span class="toggle-btn">[ expand ]</span>
+    </div>
+    <div class="writeup-meta">
+      2026-06-28 &nbsp;|&nbsp; OS: Windows Server 2022 &nbsp;|&nbsp;
+      Tipo: <span class="difficulty-medium">tool testing / debugging</span>
+    </div>
+    <div class="writeup-tags">
+      <span>win</span><span>AD</span><span>kerberos</span><span>ldap</span><span>python</span><span>tooling</span>
+    </div>
+    <div class="writeup-download">
+      <a href="writeups-files/adtoolkit-lab-test.txt" target="_blank">↓ view writeup .txt</a>
+      &nbsp;·&nbsp;
+      <a href="https://github.com/torchiachristian/ad-attack-toolkit" target="_blank">GitHub repo</a>
+    </div>
+    <div class="writeup-collapsible">
+      <pre class="writeup-body" data-lang="it">
+Test del mio tool ad-attack-toolkit su un dominio Active Directory costruito da zero, per
+verificare se reggeva un uso reale o nascondeva bug emersi solo perché tarato sull'ambiente
+di sviluppo. Risultato: due bug latenti, entrambi corretti. Tool portato a v1.1.
+
+## Fase 1 — Dominio di test
+Lab VirtualBox host-only isolato. DC Windows Server 2022, dominio psychosec.local, bersagli
+vulnerabili creati a mano (AS-REP, Kerberoasting, Domain Admin). NetBIOS scritto PSYCHOSE
+invece di PSYCHOSEC: dettaglio apparente, in realtà la chiave del primo bug.
+
+## Fase 2-3 — Bug del bind LDAP
+Crash immediato: invalidCredentials. L'orchestratore derivava il NetBIOS dal nome DNS
+(split + upper) e lo anteponeva all'username, costruendo un dominio inesistente. Il bind
+SIMPLE di AD voleva un UPN. Fix: costruzione UPN dal dominio reale, nessuna assunzione
+hardcodata sul NetBIOS.
+      </pre>
+      <div class="writeup-image">
+        <img src="assets/writeups/adtoolkit-bind-fail.png" alt="Crash bind LDAP invalidCredentials">
+        <div class="img-caption">Primo run su dominio nuovo: crash in Fase 1, bind rifiutato</div>
+      </div>
+      <pre class="writeup-body" data-lang="it">
+## Fase 4-6 — Hash Kerberoasting rifiutati da hashcat
+Dopo il fix, l'enumerazione gira pulita ma gli hash TGS venivano rifiutati (separator
+unmatched). Confronto carattere per carattere con il formato di riferimento di impacket:
+tre difetti sovrapposti nel formato hash (SPN duplicato, porta :1433 nel campo SPN, checksum
+non separato dal ticket). Tutti corretti in kerberoast.py.
+      </pre>
+      <div class="writeup-image">
+        <img src="assets/writeups/adtoolkit-enum.png" alt="Enumerazione AD completa">
+        <div class="img-caption">Dopo il fix del bind: enumerazione completa, target AS-REP e Kerberoasting</div>
+      </div>
+      <pre class="writeup-body" data-lang="it">
+## Fase 7 — Catena completa
+Hash rigenerati col tool corretto e craccati nativamente, senza più passare da impacket.
+Quattro password recuperate (2 AS-REP, 2 Kerberoasting). Catena end-to-end funzionante:
+enumerazione -> cattura hash -> cracking -> report PDF. Tool promosso a v1.1.
+      </pre>
+      <pre class="writeup-body" data-lang="en">
+Test of my ad-attack-toolkit against an Active Directory domain built from scratch, to check
+whether it held up in real use or hid bugs that only surfaced because it was tuned on the
+development environment. Result: two latent bugs, both fixed. Tool bumped to v1.1.
+
+## Phase 1 — Test domain
+Isolated host-only VirtualBox lab. Windows Server 2022 DC, psychosec.local domain, vulnerable
+targets created by hand (AS-REP, Kerberoasting, Domain Admin). NetBIOS typed PSYCHOSE instead
+of PSYCHOSEC: a seemingly cosmetic detail, actually the key to the first bug.
+
+## Phase 2-3 — LDAP bind bug
+Immediate crash: invalidCredentials. The orchestrator derived the NetBIOS from the DNS name
+(split + upper) and prepended it to the username, building a non-existent domain. AD's SIMPLE
+bind wanted a UPN. Fix: build the UPN from the real domain, no hardcoded NetBIOS assumption.
+
+## Phase 4-6 — Kerberoasting hashes rejected by hashcat
+After the fix, enumeration runs clean but TGS hashes were rejected (separator unmatched).
+Character-by-character comparison with impacket's reference format: three overlapping defects
+in the hash format (duplicated SPN, :1433 port in the SPN field, checksum not separated from
+the ticket). All fixed in kerberoast.py.
+
+## Phase 7 — Full chain
+Hashes regenerated with the fixed tool and cracked natively, no longer going through impacket.
+Four passwords recovered (2 AS-REP, 2 Kerberoasting). Working end-to-end chain: enumeration ->
+hash capture -> cracking -> PDF report. Tool promoted to v1.1.
+      </pre>
+      <div class="writeup-image">
+        <img src="assets/writeups/adtoolkit-report.png" alt="Run completo con report PDF">
+        <div class="img-caption">Run completo dopo i fix: tutte le fasi e report PDF generato</div>
+      </div>
+    </div>
+  </div>
+
 <!-- ==================== SUPPORT ==================== -->
   <div class="writeup-entry">
     <div class="writeup-header" onclick="toggleWriteup(this)">
