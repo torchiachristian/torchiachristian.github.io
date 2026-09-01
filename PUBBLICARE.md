@@ -32,6 +32,9 @@ repo: https://github.com/torchiachristian/nome
 ---
 ```
 
+`kind: lab` manda l'articolo nella sezione Lab invece che in Writeups. Senza
+quella riga finisce fra i writeup delle macchine.
+
 `ref` deve essere identico nei due file, italiano e inglese. È così che il
 pulsante di lingua sa dove mandare il lettore.
 
@@ -78,9 +81,10 @@ _layouts/base.html       scheletro comune a tutte le pagine
 _layouts/writeup.html    intestazione degli articoli
 _includes/head.html      meta tag e CSP
 _includes/nav.html       barra di navigazione e pulsante lingua
-_writeups/it/            articoli in italiano
+_writeups/it/            articoli in italiano (kind: lab = sezione Lab, altrimenti Writeups)
 _writeups/en/            articoli in inglese
-writeups.html            elenco, si aggiorna da solo
+writeups.html            elenco macchine, si aggiorna da solo
+lab.html                 elenco test di tool e comparative, si aggiorna da solo
 style.css                unico foglio di stile
 index.html               invariato, non passa da Jekyll
 about.html               invariato

@@ -1,15 +1,15 @@
 ---
 layout: base
-title: Writeups
+title: Lab
 lang: it
 ---
 
-<h1>Writeups</h1>
-<p data-lang="it">Writeup di macchine HackTheBox. Ogni entry documenta la catena di attacco completa: enumerazione, exploitation, privilege escalation.</p>
-<p data-lang="en">HackTheBox machine writeups. Each entry documents the full attack chain: enumeration, exploitation, privilege escalation.</p>
+<h1>Lab</h1>
+<p data-lang="it">Test di tool offensivi e valutazioni comparative fatte in laboratorio. Ogni articolo riporta il metodo, i numeri e cosa ho verificato a mano.</p>
+<p data-lang="en">Offensive tool testing and comparative evaluations run in the lab. Each article states the method, the numbers, and what I verified by hand.</p>
 
 <div data-lang="it">
-{% assign posts_it = site.writeups | where: "lang", "it" | where_exp: "w", "w.kind != 'lab'" | sort: "date" | reverse %}
+{% assign posts_it = site.writeups | where: "lang", "it" | where_exp: "w", "w.kind == 'lab'" | sort: "date" | reverse %}
 {% for w in posts_it %}
   <div class="writeup-entry">
     <div class="writeup-header">
@@ -32,7 +32,7 @@ lang: it
 </div>
 
 <div data-lang="en">
-{% assign posts_en = site.writeups | where: "lang", "en" | where_exp: "w", "w.kind != 'lab'" | sort: "date" | reverse %}
+{% assign posts_en = site.writeups | where: "lang", "en" | where_exp: "w", "w.kind == 'lab'" | sort: "date" | reverse %}
 {% for w in posts_en %}
   <div class="writeup-entry">
     <div class="writeup-header">
