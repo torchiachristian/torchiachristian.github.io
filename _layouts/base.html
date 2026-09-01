@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="{{ page.lang | default: 'it' }}">
+<head>
+  {% include head.html %}
+</head>
+<body class="lang-{{ page.lang | default: 'it' }}">
+
+  {% include nav.html %}
+
+  {{ content }}
+
+  <script>
+    function toggleLang(btn) {
+      const body = document.body;
+      if (body.classList.contains('lang-it')) {
+        body.classList.replace('lang-it', 'lang-en');
+        document.documentElement.lang = 'en';
+        btn.textContent = 'IT';
+      } else {
+        body.classList.replace('lang-en', 'lang-it');
+        document.documentElement.lang = 'it';
+        btn.textContent = 'EN';
+      }
+    }
+  </script>
+</body>
+</html>

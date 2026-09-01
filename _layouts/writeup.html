@@ -1,0 +1,24 @@
+---
+layout: base
+---
+
+{% unless page.bare %}
+<h1>{{ page.title }}{% if page.platform %} <span class="platform-badge"{% if page.platform_color %} style="background:{{ page.platform_color }};"{% endif %}>{{ page.platform }}</span>{% endif %}</h1>
+<div class="writeup-meta">
+  {{ page.date | date: "%Y-%m-%d" }}{% if page.os %} &nbsp;|&nbsp; OS: {{ page.os }}{% endif %}{% if page.difficulty %} &nbsp;|&nbsp; Difficulty: <span class="difficulty-{{ page.difficulty | downcase }}">{{ page.difficulty }}</span>{% endif %}
+</div>
+{% endunless %}
+
+{% if page.tags %}<div class="writeup-tags">{% for t in page.tags %}<span>{{ t }}</span>{% endfor %}</div>{% endif %}
+
+{% if page.txt or page.repo %}
+<div class="writeup-download">
+  {% if page.txt %}<a href="{{ page.txt }}" target="_blank">&darr; view full writeup .txt</a>{% endif %}{% if page.txt and page.repo %} &nbsp;&middot;&nbsp; {% endif %}{% if page.repo %}<a href="{{ page.repo }}" target="_blank">GitHub repo</a>{% endif %}
+</div>
+{% endif %}
+
+<article class="writeup-article">
+{{ content }}
+</article>
+
+<p class="writeup-back"><a href="{% if page.kind == 'lab' %}/lab.html{% else %}/writeups.html{% endif %}">{% if page.lang == "en" %}&larr; back{% else %}&larr; indietro{% endif %}</a></p>

@@ -1,0 +1,20 @@
+title: Christian Torchia
+
+markdown: kramdown
+highlighter: none
+
+kramdown:
+  input: GFM
+  hard_wrap: true
+
+collections:
+  writeups:
+    output: true
+
+exclude:
+  - PUBBLICARE.md
+  - setup-sito.sh
+  - FETCH_HEAD
+  - Gemfile
+  - Gemfile.lock
+  - vendor

@@ -1,0 +1,14 @@
+<div class="nav">
+    <a href="/">home</a>
+    <a href="/about.html">about</a>
+    <a href="/projects.html">projects</a>
+    <a href="/writeups.html">writeups</a>
+    <a href="/lab.html">lab</a>
+    {% if page.ref %}
+      {% assign cur = page.lang %}
+      {% assign twin = site.writeups | where: "ref", page.ref | where_exp: "w", "w.lang != cur" | first %}
+      {% if twin %}<a class="lang-toggle" href="{{ twin.url }}">{% if page.lang == "it" %}EN{% else %}IT{% endif %}</a>{% endif %}
+    {% else %}
+      <button class="lang-toggle" onclick="toggleLang(this)">EN</button>
+    {% endif %}
+</div>
