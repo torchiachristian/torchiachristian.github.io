@@ -18,7 +18,6 @@
     <a href="/about.html">about</a>
     <a href="/projects.html">projects</a>
     <a href="/writeups.html">writeups</a>
-    <a href="/lab.html">lab</a>
     <button class="lang-toggle" onclick="toggleLang(this)">EN</button>
 </div>
 
@@ -27,31 +26,38 @@
 <p class="projects-section-title">— <span data-lang="it">Progetti principali</span><span data-lang="en">Main projects</span></p>
 
 <div class="project">
-    <h3>ad-attack-toolkit</h3>
-    <p data-lang="it">Assessment automatizzato su Active Directory: enumerazione LDAP, AS-REP Roasting, Kerberoasting, verifica Pass-the-Hash. Report PDF con findings e remediation, lab VirtualBox incluso.</p>
-    <p data-lang="en">Automated Active Directory assessment: LDAP enumeration, AS-REP Roasting, Kerberoasting, Pass-the-Hash verification. PDF report with findings and remediation, VirtualBox lab included.</p>
-    <a class="github-btn" href="https://github.com/torchiachristian/ad-attack-toolkit" target="_blank">GitHub →</a>
-</div>
-
-<div class="project">
-    <h3>bh-path-visualizer</h3>
-    <p data-lang="it">Fa il parsing dell'output di SharpHound e calcola i percorsi di privilege escalation verso i Domain Admin senza Neo4j. Report dei choke point sul terminale e grafo D3 interattivo in un singolo file HTML.</p>
-    <p data-lang="en">Parses SharpHound output and computes privilege-escalation paths to Domain Admins without Neo4j. Choke-point report on the terminal and an interactive D3 graph in a single HTML file.</p>
+    <h3>bh-path-visualizer <span style="font-size:0.75em;font-weight:normal;color:#555;">· Python · D3.js · BloodHound · 2026</span></h3>
+    <p data-lang="it">Analizzatore standalone di attack path BloodHound con visualizzatore D3.js, senza dipendenza da Neo4j. Effettua il parsing del JSON grezzo di SharpHound, ricostruisce in memoria il grafo degli oggetti Active Directory e calcola i percorsi di privilege escalation verso gli account privilegiati.</p>
+    <p data-lang="en">Standalone BloodHound attack path analyzer with a D3.js visualizer, no Neo4j required. Parses raw SharpHound JSON, reconstructs the Active Directory object graph in memory, and computes privilege escalation paths toward privileged accounts.</p>
     <a class="github-btn" href="https://github.com/torchiachristian/bh-path-visualizer" target="_blank">GitHub →</a>
 </div>
 
 <div class="project">
-    <h3>llmprobe-v2</h3>
-    <p data-lang="it">Testing di sicurezza su endpoint LLM: leak del system prompt, prompt injection, jailbreak, bypass delle policy. Verdetto a tre segnali con livello di confidenza ed evidenze. Funziona con Ollama e con endpoint compatibili OpenAI.</p>
-    <p data-lang="en">Security testing for LLM endpoints: system prompt leak, prompt injection, jailbreak, policy bypass. Three-signal verdict with confidence level and evidence. Works against Ollama and OpenAI-compatible endpoints.</p>
-    <a class="github-btn" href="https://github.com/torchiachristian/llmprobe-v2" target="_blank">GitHub →</a>
+    <h3>VulnScan <span style="font-size:0.75em;font-weight:normal;color:#555;">· Python · Flask · nmap · nikto · sqlmap · 2025</span></h3>
+    <p data-lang="it">Scanner automatizzato per vulnerabilità web con motori nmap, nikto e sqlmap integrati. Dashboard Flask per il monitoraggio delle scansioni in tempo reale, sistema di classificazione delle vulnerabilità e generazione automatica di report PDF. Testato su DVWA e ambienti con profili di scansione configurabili.</p>
+    <p data-lang="en">Automated web vulnerability scanner with integrated nmap, nikto, and sqlmap engines. Flask dashboard for real-time scan monitoring, vulnerability classification system, and automated PDF report generation. Tested against DVWA with configurable scan profiles.</p>
+    <a class="github-btn" href="https://github.com/torchiachristian/VulnScan" target="_blank">GitHub →</a>
 </div>
 
 <div class="project">
-    <h3>VulnScan</h3>
-    <p data-lang="it">Scanner di vulnerabilità web in Python: SQL injection, XSS riflesso, path traversal, security header. Crawler, dashboard Flask, report PDF.</p>
-    <p data-lang="en">Web vulnerability scanner in Python: SQL injection, reflected XSS, path traversal, security headers. Crawler, Flask dashboard, PDF reporting.</p>
-    <a class="github-btn" href="https://github.com/torchiachristian/VulnScan" target="_blank">GitHub →</a>
+    <h3>AD-Attack Toolkit <span style="font-size:0.75em;font-weight:normal;color:#555;">· Python · Impacket · ldap3 · Hashcat · 2025</span></h3>
+    <p data-lang="it">Framework di automazione per il pen test su Active Directory. Implementa AS-REP Roasting, Kerberoasting e Pass-the-Hash con supporto Hashcat integrato. Enumerazione automatizzata via ldap3/Impacket, credential dumping e report PDF. Include setup completo del lab VirtualBox con Windows Server 2019 DC e client Windows 10.</p>
+    <p data-lang="en">Active Directory penetration testing automation framework. Implements AS-REP Roasting, Kerberoasting, and Pass-the-Hash with integrated Hashcat support. Automated enumeration via ldap3/Impacket, credential dumping, and PDF reporting. Includes full VirtualBox lab setup with Windows Server 2019 DC and Windows 10 clients.</p>
+    <a class="github-btn" href="https://github.com/torchiachristian/AD-Attack-Toolkit" target="_blank">GitHub →</a>
+</div>
+
+<div class="project">
+    <h3>HomeNetMonitor <span style="font-size:0.75em;font-weight:normal;color:#555;">· Python · Flask · Scapy · nmap · Chart.js · 2025</span></h3>
+    <p data-lang="it">Dashboard di monitoraggio di rete domestica in tempo reale con rilevamento dispositivi e alert anomalie. Packet sniffing con Scapy, scansione nmap, monitoraggio banda e rilevamento anomalie. Dashboard web live con grafici Chart.js e timeline connessioni a 7 giorni.</p>
+    <p data-lang="en">Real-time home network monitoring dashboard with device detection and anomaly alerts. Built with Python/Flask, implements packet sniffing (Scapy), network scanning (nmap), bandwidth monitoring, and anomaly detection. Live web dashboard with Chart.js graphs and 7-day connection timeline.</p>
+    <a class="github-btn" href="https://github.com/torchiachristian/HomeNetMonitor" target="_blank">GitHub →</a>
+</div>
+
+<div class="project">
+    <h3>habit_tracker <span style="font-size:0.75em;font-weight:normal;color:#555;">· Python · Tkinter · SQLite · 2024</span></h3>
+    <p data-lang="it">Applicazione desktop per il tracciamento delle abitudini con backend SQLite. Grafici percentuali e monitoraggio progressi giornalieri.</p>
+    <p data-lang="en">Desktop habit tracking app with SQLite backend. Percentage graphs and daily progress monitoring.</p>
+    <a class="github-btn" href="https://github.com/torchiachristian/habit-tracker" target="_blank">GitHub →</a>
 </div>
 
 <p class="projects-section-title">— <span data-lang="it">Script / tool minori</span><span data-lang="en">Scripts / small tools</span></p>

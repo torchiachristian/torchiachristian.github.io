@@ -5,11 +5,11 @@ lang: it
 ---
 
 <h1>Writeups</h1>
-<p data-lang="it">Writeup di macchine HackTheBox. Ogni entry documenta la catena di attacco completa: enumerazione, exploitation, privilege escalation.</p>
-<p data-lang="en">HackTheBox machine writeups. Each entry documents the full attack chain: enumeration, exploitation, privilege escalation.</p>
+<p data-lang="it">Writeup di macchine HackTheBox, test di tool e note di laboratorio. Ogni entry documenta la catena completa: enumerazione, exploitation, privilege escalation.</p>
+<p data-lang="en">HackTheBox machine writeups, tool testing and lab notes. Each entry documents the full chain: enumeration, exploitation, privilege escalation.</p>
 
 <div data-lang="it">
-{% assign posts_it = site.writeups | where: "lang", "it" | where_exp: "w", "w.kind != 'lab'" | sort: "date" | reverse %}
+{% assign posts_it = site.writeups | where: "lang", "it" | sort: "date" | reverse %}
 {% for w in posts_it %}
   <div class="writeup-entry">
     <div class="writeup-header">
@@ -32,7 +32,7 @@ lang: it
 </div>
 
 <div data-lang="en">
-{% assign posts_en = site.writeups | where: "lang", "en" | where_exp: "w", "w.kind != 'lab'" | sort: "date" | reverse %}
+{% assign posts_en = site.writeups | where: "lang", "en" | sort: "date" | reverse %}
 {% for w in posts_en %}
   <div class="writeup-entry">
     <div class="writeup-header">
