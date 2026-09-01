@@ -1,0 +1,37 @@
+title: Christian Torchia
+url: https://torchiachristian.github.io
+
+markdown: kramdown
+highlighter: none
+
+kramdown:
+  input: GFM
+  hard_wrap: true
+
+collections:
+  writeups:
+    output: true
+
+defaults:
+  - scope:
+      path: "_writeups/it"
+      type: writeups
+    values:
+      layout: writeup
+      lang: it
+      permalink: /writeups/:name/
+  - scope:
+      path: "_writeups/en"
+      type: writeups
+    values:
+      layout: writeup
+      lang: en
+      permalink: /en/writeups/:name/
+
+exclude:
+  - README.md
+  - PUBBLICARE.md
+  - FETCH_HEAD
+  - Gemfile
+  - Gemfile.lock
+  - vendor
