@@ -1,55 +1,425 @@
----
-layout: base
-title: Writeups
-lang: it
----
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Writeups - Christian Torchia</title>
+  <meta http-equiv="X-Content-Type-Options" content="nosniff">
+  <meta http-equiv="X-Frame-Options" content="DENY">
+  <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
+  <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=()">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self' 'unsafe-inline';">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .writeup-entry { margin: 25px 0; padding-bottom: 25px; border-bottom: 1px solid #e0e0e0; }
+    .writeup-entry:last-child { border-bottom: none; }
+    .writeup-header { display: flex; align-items: baseline; gap: 0.5em; cursor: pointer; user-select: none; }
+    .writeup-header h3 { margin: 0; border-bottom: none; padding-bottom: 0; }
+    .toggle-btn { font-size: 0.78em; color: #888; margin-left: auto; white-space: nowrap; }
+    .writeup-meta { font-size: 0.85em; color: #666; margin: 6px 0; }
+    .writeup-tags { margin: 6px 0; }
+    .writeup-tags span { display: inline-block; font-size: 0.78em; background: #f0f0f0; border: 1px solid #ccc; padding: 1px 7px; margin-right: 4px; border-radius: 2px; }
+    .writeup-download { margin-top: 8px; }
+    .writeup-download a { font-size: 0.82em; color: #111; text-decoration: underline; border-bottom: none; }
+    .writeup-collapsible { display: none; margin-top: 1em; }
+    .writeup-collapsible.open { display: block; }
+    .writeup-body { margin-top: 0.8em; white-space: pre-wrap; font-family: inherit; font-size: 0.9em; line-height: 1.7; }
+    .writeup-image { margin-top: 1em; }
+    .writeup-image img { max-width: 100%; max-height: 400px; border: 1px solid #ddd; display: block; }
+    .writeup-image .img-caption { font-size: 0.8em; color: #888; margin-top: 4px; }
+    .difficulty-easy   { color: #2a9d2a; font-weight: bold; }
+    .difficulty-medium { color: #d97706; font-weight: bold; }
+    .difficulty-hard   { color: #dc2626; font-weight: bold; }
+    .difficulty-insane { color: #7c3aed; font-weight: bold; }
+    .platform-badge { font-size: 0.75em; background: #111; color: #fff; padding: 2px 8px; margin-left: 6px; vertical-align: middle; }
+  </style>
+</head>
+<body class="lang-it">
 
-<h1>Writeups</h1>
-<p data-lang="it">Writeup di macchine HackTheBox, test di tool e note di laboratorio. Ogni entry documenta la catena completa: enumerazione, exploitation, privilege escalation.</p>
-<p data-lang="en">HackTheBox machine writeups, tool testing and lab notes. Each entry documents the full chain: enumeration, exploitation, privilege escalation.</p>
+  <div class="nav">
+    <a href="/">home</a>
+    <a href="/about.html">about</a>
+    <a href="/projects.html">projects</a>
+    <a href="/writeups.html">writeups</a>
+    <button class="lang-toggle" onclick="toggleLang(this)">EN</button>
+  </div>
 
-<div data-lang="it">
-{% assign posts_it = site.writeups | where: "lang", "it" | sort: "date" | reverse %}
-{% for w in posts_it %}
+  <h1>Writeups</h1>
+  <p data-lang="it">Writeup di macchine HackTheBox. Ogni entry documenta la catena di attacco completa: enumerazione, exploitation, privilege escalation.</p>
+  <p data-lang="en">HackTheBox machine writeups. Each entry documents the full attack chain: enumeration, exploitation, privilege escalation.</p>
+
+  <!-- ==================== AD ATTACK TOOLKIT — LAB TEST ==================== -->
   <div class="writeup-entry">
-    <div class="writeup-header">
-      <h3><a href="{{ w.url }}">{{ w.title }}</a>{% if w.platform %} <span class="platform-badge"{% if w.platform_color %} style="background:{{ w.platform_color }};"{% endif %}>{{ w.platform }}</span>{% endif %}</h3>
+    <div class="writeup-header" onclick="toggleWriteup(this)">
+      <h3>AD Attack Toolkit — tool testing <span class="platform-badge" style="background:#1d4ed8;">LAB</span></h3>
+      <span class="toggle-btn">[ expand ]</span>
     </div>
     <div class="writeup-meta">
-      {{ w.date | date: "%Y-%m-%d" }}
-      {%- if w.os %} &nbsp;|&nbsp; OS: {{ w.os }}{% endif -%}
-      {%- if w.difficulty %} &nbsp;|&nbsp; Difficulty: <span class="difficulty-{{ w.difficulty | downcase }}">{{ w.difficulty }}</span>{% endif -%}
+      2026-06-28 &nbsp;|&nbsp; OS: Windows
     </div>
-    {% if w.tags %}<div class="writeup-tags">{% for t in w.tags %}<span>{{ t }}</span>{% endfor %}</div>{% endif %}
-    {% if w.summary %}<p class="writeup-summary">{{ w.summary }}</p>{% endif %}
+    <div class="writeup-tags">
+      <span>win</span><span>AD</span><span>kerberos</span><span>ldap</span><span>python</span><span>tooling</span>
+    </div>
     <div class="writeup-download">
-      <a href="{{ w.url }}">leggi &rarr;</a>
-      {% if w.txt %}&nbsp;·&nbsp;<a href="{{ w.txt }}" target="_blank">&darr; .txt</a>{% endif %}
-      {% if w.repo %}&nbsp;·&nbsp;<a href="{{ w.repo }}" target="_blank">GitHub repo</a>{% endif %}
+      <a href="writeups-files/adtoolkit-lab-test.txt" target="_blank">↓ view full writeup .txt</a>
+      &nbsp;·&nbsp;
+      <a href="https://github.com/torchiachristian/ad-attack-toolkit" target="_blank">GitHub repo</a>
+    </div>
+    <div class="writeup-collapsible">
+      <pre class="writeup-body" data-lang="it">
+Test del mio tool ad-attack-toolkit su un dominio Active Directory costruito da zero, per
+verificare se reggeva un uso reale o nascondeva bug emersi solo perché tarato sull'ambiente
+di sviluppo. Risultato: due bug latenti, entrambi corretti. Tool portato a v1.1.
+La versione qui sotto è un riassunto: il writeup completo è nel file .txt linkato sopra.
+
+## Fase 1 — Dominio di test
+Lab VirtualBox host-only isolato. DC Windows Server 2022, dominio psychosec.local, bersagli
+vulnerabili creati a mano (AS-REP, Kerberoasting, Domain Admin). NetBIOS scritto PSYCHOSE
+invece di PSYCHOSEC: dettaglio apparente, in realtà la chiave del primo bug.
+
+## Fase 2-3 — Bug del bind LDAP
+Crash immediato: invalidCredentials. L'orchestratore derivava il NetBIOS dal nome DNS
+(split + upper) e lo anteponeva all'username, costruendo un dominio inesistente. Il bind
+SIMPLE di AD voleva un UPN. Fix: costruzione UPN dal dominio reale, nessuna assunzione
+hardcodata sul NetBIOS.
+
+## Fase 4-6 — Hash Kerberoasting rifiutati da hashcat
+Dopo il fix, l'enumerazione gira pulita ma gli hash TGS venivano rifiutati (separator
+unmatched). Confronto carattere per carattere con il formato di riferimento di impacket:
+tre difetti sovrapposti nel formato hash (SPN duplicato, porta :1433 nel campo SPN, checksum
+non separato dal ticket). Tutti corretti in kerberoast.py.
+
+## Fase 7 — Catena completa
+Hash rigenerati col tool corretto e craccati nativamente, senza più passare da impacket.
+Quattro password recuperate (2 AS-REP, 2 Kerberoasting). Catena end-to-end funzionante:
+enumerazione -> cattura hash -> cracking -> report PDF. Tool promosso a v1.1.
+      </pre>
+      <pre class="writeup-body" data-lang="en">
+Test of my ad-attack-toolkit against an Active Directory domain built from scratch, to check
+whether it held up in real use or hid bugs that only surfaced because it was tuned on the
+development environment. Result: two latent bugs, both fixed. Tool bumped to v1.1.
+The version below is a summary: the full writeup is in the linked .txt file above.
+
+## Phase 1 — Test domain
+Isolated host-only VirtualBox lab. Windows Server 2022 DC, psychosec.local domain, vulnerable
+targets created by hand (AS-REP, Kerberoasting, Domain Admin). NetBIOS typed PSYCHOSE instead
+of PSYCHOSEC: a seemingly cosmetic detail, actually the key to the first bug.
+
+## Phase 2-3 — LDAP bind bug
+Immediate crash: invalidCredentials. The orchestrator derived the NetBIOS from the DNS name
+(split + upper) and prepended it to the username, building a non-existent domain. AD's SIMPLE
+bind wanted a UPN. Fix: build the UPN from the real domain, no hardcoded NetBIOS assumption.
+
+## Phase 4-6 — Kerberoasting hashes rejected by hashcat
+After the fix, enumeration runs clean but TGS hashes were rejected (separator unmatched).
+Character-by-character comparison with impacket's reference format: three overlapping defects
+in the hash format (duplicated SPN, :1433 port in the SPN field, checksum not separated from
+the ticket). All fixed in kerberoast.py.
+
+## Phase 7 — Full chain
+Hashes regenerated with the fixed tool and cracked natively, no longer going through impacket.
+Four passwords recovered (2 AS-REP, 2 Kerberoasting). Working end-to-end chain: enumeration ->
+hash capture -> cracking -> PDF report. Tool promoted to v1.1.
+      </pre>
+      <div class="writeup-image">
+        <img src="assets/writeups/adtoolkit-bind-fail.png" alt="Crash bind LDAP invalidCredentials">
+        <div class="img-caption">Fase 1: crash al primo run, bind rifiutato (invalidCredentials)</div>
+      </div>
+      <div class="writeup-image">
+        <img src="assets/writeups/adtoolkit-enum.png" alt="Enumerazione AD completa">
+        <div class="img-caption">Dopo il fix del bind: enumerazione completa, target AS-REP e Kerberoasting</div>
+      </div>
+      <div class="writeup-image">
+        <img src="assets/writeups/adtoolkit-report.png" alt="Run completo con report PDF">
+        <div class="img-caption">Run completo dopo i fix: tutte le fasi e report PDF generato</div>
+      </div>
     </div>
   </div>
-{% endfor %}
-</div>
 
-<div data-lang="en">
-{% assign posts_en = site.writeups | where: "lang", "en" | sort: "date" | reverse %}
-{% for w in posts_en %}
+<!-- ==================== SUPPORT ==================== -->
   <div class="writeup-entry">
-    <div class="writeup-header">
-      <h3><a href="{{ w.url }}">{{ w.title }}</a>{% if w.platform %} <span class="platform-badge"{% if w.platform_color %} style="background:{{ w.platform_color }};"{% endif %}>{{ w.platform }}</span>{% endif %}</h3>
+    <div class="writeup-header" onclick="toggleWriteup(this)">
+      <h3>Support <span class="platform-badge">HTB</span></h3>
+      <span class="toggle-btn">[ expand ]</span>
     </div>
     <div class="writeup-meta">
-      {{ w.date | date: "%Y-%m-%d" }}
-      {%- if w.os %} &nbsp;|&nbsp; OS: {{ w.os }}{% endif -%}
-      {%- if w.difficulty %} &nbsp;|&nbsp; Difficulty: <span class="difficulty-{{ w.difficulty | downcase }}">{{ w.difficulty }}</span>{% endif -%}
+      2026-06-18 &nbsp;|&nbsp; OS: Windows &nbsp;|&nbsp;
+      Difficulty: <span class="difficulty-easy">Easy</span>
     </div>
-    {% if w.tags %}<div class="writeup-tags">{% for t in w.tags %}<span>{{ t }}</span>{% endfor %}</div>{% endif %}
-    {% if w.summary %}<p class="writeup-summary">{{ w.summary }}</p>{% endif %}
+    <div class="writeup-tags">
+      <span>win</span><span>AD</span><span>ldap</span><span>rbcd</span><span>kerberos</span><span>privesc</span>
+    </div>
     <div class="writeup-download">
-      <a href="{{ w.url }}">read &rarr;</a>
-      {% if w.txt %}&nbsp;·&nbsp;<a href="{{ w.txt }}" target="_blank">&darr; .txt</a>{% endif %}
-      {% if w.repo %}&nbsp;·&nbsp;<a href="{{ w.repo }}" target="_blank">GitHub repo</a>{% endif %}
+      <a href="writeups-files/support.txt" target="_blank">↓ view full writeup .txt</a>
+    </div>
+    <div class="writeup-collapsible">
+      <pre class="writeup-body" data-lang="it">
+Macchina Active Directory. Si parte da una share SMB anonima con un tool .NET interno.
+Catena: SMB anonimo → estrazione credenziali da binario .NET → ldap → password nel campo info LDAP → WinRM support → WRITE su DC$ → RBCD → S4U → Administrator.
+
+## Fase 1 — Ricognizione
+nmap su SMB. Share non standard "support-tools" accessibile in anonimo.
+Dominio: support.htb / DC: dc.support.htb
+
+## Fase 2 — Share anonima e analisi binario
+UserInfo.exe.zip nella share. È un tool .NET che interroga LDAP con credenziali cifrate.
+monodis estrae enc_password e key = "armando".
+
+## Fase 3 — Decifratura
+Diversi tentativi falliti con cifrari standard (AES-ECB/CBC, RC4).
+Schema reale: base64 decode + XOR con la chiave e una costante → password dell'account ldap.
+
+## Fase 4 — Enumerazione LDAP
+ldapsearch enumera 21 utenti. La password dell'account support è nascosta nel campo "info".
+→ Ironside47pleasure40Watchful
+
+## Fase 5 — WinRM come support
+support è in Remote Management Users. evil-winrm → shell. User flag.
+
+## Fase 6 — Ricerca privesc (con i fallimenti)
+support non è in gruppi privilegiati. Falliti: reset password Administrator, DCSync diretto,
+Kerberoasting (nessun SPN), AS-REP Roasting (nessun utente), scrittura GPO/SYSVOL.
+
+## Fase 7 — RBCD e accesso finale
+bloodyAD rivela DACL: WRITE su DC$. Combinato con SeMachineAccountPrivilege → RBCD.
+Creo un account computer, configuro RBCD su DC$, S4U per impersonare Administrator.
+getST.py → ticket → wmiexec → Administrator → root.
+DCSync finale dell'NTDS.DIT a conferma dell'impatto sull'intero dominio.
+      </pre>
+      <pre class="writeup-body" data-lang="en">
+Active Directory machine. Starts from an anonymous SMB share with an internal .NET tool.
+Chain: anonymous SMB → credential extraction from .NET binary → ldap → password in LDAP info field → WinRM support → WRITE on DC$ → RBCD → S4U → Administrator.
+
+## Phase 1 — Reconnaissance
+nmap on SMB. Non-standard share "support-tools" accessible anonymously.
+Domain: support.htb / DC: dc.support.htb
+
+## Phase 2 — Anonymous share and binary analysis
+UserInfo.exe.zip in the share. A .NET tool that queries LDAP with encrypted credentials.
+monodis extracts enc_password and key = "armando".
+
+## Phase 3 — Decryption
+Several failed attempts with standard ciphers (AES-ECB/CBC, RC4).
+Actual scheme: base64 decode + XOR with key and a constant → ldap account password.
+
+## Phase 4 — LDAP enumeration
+ldapsearch enumerates 21 users. The support account password is hidden in the "info" field.
+→ Ironside47pleasure40Watchful
+
+## Phase 5 — WinRM as support
+support is in Remote Management Users. evil-winrm → shell. User flag.
+
+## Phase 6 — Privesc hunt (with failures)
+support is in no privileged group. Failed: Administrator password reset, direct DCSync,
+Kerberoasting (no SPN), AS-REP Roasting (no users), GPO/SYSVOL write.
+
+## Phase 7 — RBCD and final access
+bloodyAD reveals DACL: WRITE on DC$. Combined with SeMachineAccountPrivilege → RBCD.
+Create a computer account, set RBCD on DC$, S4U to impersonate Administrator.
+getST.py → ticket → wmiexec → Administrator → root.
+Final NTDS.DIT DCSync confirming full-domain impact.
+      </pre>
+      <div class="writeup-image">
+        <img src="assets/writeups/support.png" alt="Support pwned">
+        <div class="img-caption">Proof of pwn</div>
+      </div>
     </div>
   </div>
-{% endfor %}
-</div>
+  
+  <!-- ==================== LOGGING ==================== -->
+  <div class="writeup-entry">
+    <div class="writeup-header" onclick="toggleWriteup(this)">
+      <h3>Logging <span class="platform-badge">HTB</span></h3>
+      <span class="toggle-btn">[ expand ]</span>
+    </div>
+    <div class="writeup-meta">
+      2026-05-26 &nbsp;|&nbsp; OS: Windows &nbsp;|&nbsp;
+      Difficulty: <span class="difficulty-medium">Medium</span>
+    </div>
+    <div class="writeup-tags">
+      <span>win</span><span>AD</span><span>kerberos</span><span>nmap</span><span>privesc</span>
+    </div>
+    <div class="writeup-download">
+      <a href="writeups-files/logging.txt" target="_blank">↓ view full writeup .txt</a>
+    </div>
+    <div class="writeup-collapsible">
+      <pre class="writeup-body" data-lang="it">
+Macchina Active Directory. Le credenziali iniziali di wallace.everette sono fornite dalla piattaforma.
+Catena: SMB log analysis → password recovery → Shadow Credentials → WinRM gMSA → DLL hijacking → Credential Vault dump → Administrator.
+
+## Fase 1 — Ricognizione
+Port scan completo con nmap. Porte rilevanti: 53 (DNS), 88 (Kerberos), 139/445 (SMB), 389/636 (LDAP), 5985 (WinRM).
+Dominio: logging.htb / DC: DC01.logging.htb
+
+## Fase 2 — SMB e discovery credenziali
+Share non standard "Logs" contenente log di sistema. Nel file IdentitySync_Trace_20260219.log
+emerge una password in chiaro per svc_recovery (scaduta). Pattern anno → Em3rg3ncyPa$$2026.
+getTGT.py conferma: ticket ottenuto.
+
+## Fase 3 — BloodHound
+svc_recovery ha GenericWrite su MSA_HEALTH$ (gMSA).
+MSA_HEALTH$ è membro di Remote Management Users.
+Gruppo IT ha Full Control su C:\Program Files\UpdateMonitor\bin\
+
+## Fase 4 — Shadow Credentials
+bloodyAD aggiunge Shadow Credentials su MSA_HEALTH$.
+PKINIT instabile tra respawn (KDC_ERR_PADATA_TYPE_NOSUPP su alcune istanze).
+Soluzione: l'hash NT del gMSA rimane valido tra respawn (rotazione ogni 30 giorni).
+evil-winrm con hash → shell come msa_health$
+
+## Fase 5-6 — DLL Hijacking
+UpdateMonitor.exe carica settings_update.dll da un ZIP in ProgramData.
+Sei tentativi falliti: architettura sbagliata, funzione non esportata, system() muta in sessione 0,
+reverse shell bloccata dal firewall egress.
+Vettore corretto: CredEnumerate() WinAPI per leggere il Credential Vault di jaylee.clifton.
+
+## Fase 7 — Accesso finale
+Credenziali di jaylee.clifton e Administrator recuperate dal vault.
+psexec.py → shell SYSTEM. Flag recuperate.
+      </pre>
+      <pre class="writeup-body" data-lang="en">
+Active Directory machine. Initial credentials for wallace.everette are provided by the platform.
+Chain: SMB log analysis → password recovery → Shadow Credentials → WinRM gMSA → DLL hijacking → Credential Vault dump → Administrator.
+
+## Phase 1 — Reconnaissance
+Full nmap scan. Relevant ports: 53 (DNS), 88 (Kerberos), 139/445 (SMB), 389/636 (LDAP), 5985 (WinRM).
+Domain: logging.htb / DC: DC01.logging.htb
+
+## Phase 2 — SMB and credential discovery
+Non-standard share "Logs" containing system logs. IdentitySync_Trace_20260219.log
+reveals a cleartext password for svc_recovery (expired). Year pattern → Em3rg3ncyPa$$2026.
+getTGT.py confirms: ticket obtained.
+
+## Phase 3 — BloodHound
+svc_recovery has GenericWrite on MSA_HEALTH$ (gMSA).
+MSA_HEALTH$ is member of Remote Management Users.
+IT group has Full Control over C:\Program Files\UpdateMonitor\bin\
+
+## Phase 4 — Shadow Credentials
+bloodyAD adds Shadow Credentials to MSA_HEALTH$.
+PKINIT unstable across respawns (KDC_ERR_PADATA_TYPE_NOSUPP on some instances).
+Solution: gMSA NT hash stays valid across respawns (rotates every 30 days).
+evil-winrm with hash → shell as msa_health$
+
+## Phases 5-6 — DLL Hijacking
+UpdateMonitor.exe loads settings_update.dll from a ZIP in ProgramData.
+Six failed attempts: wrong architecture, missing export, system() mute in session 0,
+reverse shell blocked by egress firewall.
+Correct vector: CredEnumerate() WinAPI to read jaylee.clifton's Credential Vault.
+
+## Phase 7 — Final access
+jaylee.clifton and Administrator credentials recovered from vault.
+psexec.py → SYSTEM shell. Flags retrieved.
+      </pre>
+      <div class="writeup-image">
+        <img src="assets/writeups/logging.png" alt="Logging pwned">
+        <div class="img-caption">Proof of pwn</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== REACTOR ==================== -->
+  <div class="writeup-entry">
+    <div class="writeup-header" onclick="toggleWriteup(this)">
+      <h3>Reactor <span class="platform-badge">HTB</span></h3>
+      <span class="toggle-btn">[ expand ]</span>
+    </div>
+    <div class="writeup-meta">
+      2026-05-30 &nbsp;|&nbsp; OS: Linux &nbsp;|&nbsp;
+      Difficulty: <span class="difficulty-easy">Easy</span>
+    </div>
+    <div class="writeup-tags">
+      <span>lin</span><span>rce</span><span>nmap</span><span>privesc</span><span>CVE-2025-55182</span>
+    </div>
+    <div class="writeup-download">
+      <a href="writeups-files/reactor.txt" target="_blank">↓ view full writeup .txt</a>
+    </div>
+    <div class="writeup-collapsible">
+      <pre class="writeup-body" data-lang="it">
+Next.js 15.0.3 vulnerabile a CVE-2025-55182 (React2Shell), RCE unauthenticated.
+Catena: RCE Next.js → SQLite dump → MD5 crack → SSH user → Node Inspector abuse → root.
+
+## Fase 1 — Ricognizione
+nmap: porta 22 (SSH) e 3000. Headers rivelano Next.js.
+App: dashboard statica "ReactorWatch" con tre profili staff.
+
+## Fase 2 — Identificazione vettore
+/_next/image risponde 400 (non 404) → endpoint presente.
+Versione 15.0.3 → CVE-2025-55182. Test con headers RSC → risposta 200. Vulnerabile.
+
+## Fase 3 — RCE via React2Shell
+PoC pubblico (jensnesten/React2Shell-PoC):
+python3 main.py http://10.129.9.91:3000 'id'
+→ uid=999(node)
+Nota: output lungo va rediretto su file temporaneo (il parser RSC corrompe stdout binario).
+
+## Fase 4 — SQLite dump e crack
+strings su reactor.db → tabella users con due hash MD5.
+Primo hash cracca su CrackStation → engineer / [password]
+
+## Fase 5 — Privilege escalation
+ps aux: processo Node.js root con --inspect=127.0.0.1:9229
+Il Node Inspector espone un WebSocket che esegue codice JS arbitrario nel contesto root.
+Handshake WebSocket manuale via Python + Chrome DevTools Protocol:
+Runtime.evaluate → process.mainModule.require("child_process").execSync("cat /root/root.txt")
+Nota: require() diretto non funziona nel contesto V8 nudo — usare process.mainModule.require().
+      </pre>
+      <pre class="writeup-body" data-lang="en">
+Next.js 15.0.3 vulnerable to CVE-2025-55182 (React2Shell), unauthenticated RCE.
+Chain: Next.js RCE → SQLite dump → MD5 crack → SSH user → Node Inspector abuse → root.
+
+## Phase 1 — Reconnaissance
+nmap: port 22 (SSH) and 3000. Headers reveal Next.js.
+App: static dashboard "ReactorWatch" with three staff profiles.
+
+## Phase 2 — Vector identification
+/_next/image returns 400 (not 404) → endpoint exists.
+Version 15.0.3 → CVE-2025-55182. Test with RSC headers → 200 response. Vulnerable.
+
+## Phase 3 — RCE via React2Shell
+Public PoC (jensnesten/React2Shell-PoC):
+python3 main.py http://10.129.9.91:3000 'id'
+→ uid=999(node)
+Note: long output must be redirected to a temp file (RSC parser corrupts binary stdout).
+
+## Phase 4 — SQLite dump and crack
+strings on reactor.db → users table with two MD5 hashes.
+First hash cracks on CrackStation → engineer / [password]
+
+## Phase 5 — Privilege escalation
+ps aux: root Node.js process with --inspect=127.0.0.1:9229
+Node Inspector exposes a WebSocket that executes arbitrary JS in the root process context.
+Manual WebSocket handshake via Python + Chrome DevTools Protocol:
+Runtime.evaluate → process.mainModule.require("child_process").execSync("cat /root/root.txt")
+Note: bare require() doesn't work in the raw V8 debugger context — use process.mainModule.require().
+      </pre>
+      <div class="writeup-image">
+        <img src="assets/writeups/reactor.png" alt="Reactor pwned">
+        <div class="img-caption">Proof of pwn</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function toggleWriteup(header) {
+      const collapsible = header.parentElement.querySelector('.writeup-collapsible');
+      const btn = header.querySelector('.toggle-btn');
+      const isOpen = collapsible.classList.contains('open');
+      collapsible.classList.toggle('open');
+      btn.textContent = isOpen ? '[ expand ]' : '[ collapse ]';
+    }
+    function toggleLang(btn) {
+      const body = document.body;
+      if (body.classList.contains('lang-it')) {
+        body.classList.replace('lang-it', 'lang-en');
+        document.documentElement.lang = 'en';
+        btn.textContent = 'IT';
+      } else {
+        body.classList.replace('lang-en', 'lang-it');
+        document.documentElement.lang = 'it';
+        btn.textContent = 'EN';
+      }
+    }
+  </script>
+</body>
+</html>
