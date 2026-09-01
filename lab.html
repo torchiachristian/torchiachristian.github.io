@@ -9,42 +9,47 @@ lang: it
 <p data-lang="en">Offensive tool testing and comparative evaluations run in the lab. Each article states the method, the numbers, and what I verified by hand.</p>
 
 <div data-lang="it">
-{% assign items = site.writeups | sort: "date" | reverse %}
-{% for w in items %}
-{% if w.path contains "_writeups/it/" and w.kind == "lab" %}
+{% assign posts_it = site.writeups | where: "lang", "it" | where_exp: "w", "w.kind == 'lab'" | sort: "date" | reverse %}
+{% for w in posts_it %}
   <div class="writeup-entry">
     <div class="writeup-header">
       <h3><a href="{{ w.url }}">{{ w.title }}</a>{% if w.platform %} <span class="platform-badge"{% if w.platform_color %} style="background:{{ w.platform_color }};"{% endif %}>{{ w.platform }}</span>{% endif %}</h3>
     </div>
     <div class="writeup-meta">
-      {{ w.date | date: "%Y-%m-%d" }}{% if w.os %} &nbsp;|&nbsp; OS: {{ w.os }}{% endif %}{% if w.difficulty %} &nbsp;|&nbsp; Difficulty: <span class="difficulty-{{ w.difficulty | downcase }}">{{ w.difficulty }}</span>{% endif %}
+      {{ w.date | date: "%Y-%m-%d" }}
+      {%- if w.os %} &nbsp;|&nbsp; OS: {{ w.os }}{% endif -%}
+      {%- if w.difficulty %} &nbsp;|&nbsp; Difficulty: <span class="difficulty-{{ w.difficulty | downcase }}">{{ w.difficulty }}</span>{% endif -%}
     </div>
     {% if w.tags %}<div class="writeup-tags">{% for t in w.tags %}<span>{{ t }}</span>{% endfor %}</div>{% endif %}
     {% if w.summary %}<p class="writeup-summary">{{ w.summary }}</p>{% endif %}
     <div class="writeup-download">
-      <a href="{{ w.url }}">leggi &rarr;</a>{% if w.txt %} &nbsp;·&nbsp; <a href="{{ w.txt }}" target="_blank">&darr; .txt</a>{% endif %}{% if w.repo %} &nbsp;·&nbsp; <a href="{{ w.repo }}" target="_blank">GitHub repo</a>{% endif %}
+      <a href="{{ w.url }}">leggi &rarr;</a>
+      {% if w.txt %}&nbsp;·&nbsp;<a href="{{ w.txt }}" target="_blank">&darr; .txt</a>{% endif %}
+      {% if w.repo %}&nbsp;·&nbsp;<a href="{{ w.repo }}" target="_blank">GitHub repo</a>{% endif %}
     </div>
   </div>
-{% endif %}
 {% endfor %}
 </div>
 
 <div data-lang="en">
-{% for w in items %}
-{% if w.path contains "_writeups/en/" and w.kind == "lab" %}
+{% assign posts_en = site.writeups | where: "lang", "en" | where_exp: "w", "w.kind == 'lab'" | sort: "date" | reverse %}
+{% for w in posts_en %}
   <div class="writeup-entry">
     <div class="writeup-header">
       <h3><a href="{{ w.url }}">{{ w.title }}</a>{% if w.platform %} <span class="platform-badge"{% if w.platform_color %} style="background:{{ w.platform_color }};"{% endif %}>{{ w.platform }}</span>{% endif %}</h3>
     </div>
     <div class="writeup-meta">
-      {{ w.date | date: "%Y-%m-%d" }}{% if w.os %} &nbsp;|&nbsp; OS: {{ w.os }}{% endif %}{% if w.difficulty %} &nbsp;|&nbsp; Difficulty: <span class="difficulty-{{ w.difficulty | downcase }}">{{ w.difficulty }}</span>{% endif %}
+      {{ w.date | date: "%Y-%m-%d" }}
+      {%- if w.os %} &nbsp;|&nbsp; OS: {{ w.os }}{% endif -%}
+      {%- if w.difficulty %} &nbsp;|&nbsp; Difficulty: <span class="difficulty-{{ w.difficulty | downcase }}">{{ w.difficulty }}</span>{% endif -%}
     </div>
     {% if w.tags %}<div class="writeup-tags">{% for t in w.tags %}<span>{{ t }}</span>{% endfor %}</div>{% endif %}
     {% if w.summary %}<p class="writeup-summary">{{ w.summary }}</p>{% endif %}
     <div class="writeup-download">
-      <a href="{{ w.url }}">read &rarr;</a>{% if w.txt %} &nbsp;·&nbsp; <a href="{{ w.txt }}" target="_blank">&darr; .txt</a>{% endif %}{% if w.repo %} &nbsp;·&nbsp; <a href="{{ w.repo }}" target="_blank">GitHub repo</a>{% endif %}
+      <a href="{{ w.url }}">read &rarr;</a>
+      {% if w.txt %}&nbsp;·&nbsp;<a href="{{ w.txt }}" target="_blank">&darr; .txt</a>{% endif %}
+      {% if w.repo %}&nbsp;·&nbsp;<a href="{{ w.repo }}" target="_blank">GitHub repo</a>{% endif %}
     </div>
   </div>
-{% endif %}
 {% endfor %}
 </div>
