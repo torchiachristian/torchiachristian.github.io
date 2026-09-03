@@ -298,3 +298,5 @@ p { margin: 15px 0; }
     border: 1px solid #000;
     display: inline-block;
 }
+
+body { zoom: 0.9; }
