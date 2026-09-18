@@ -23,6 +23,10 @@ lang: en
     <p class="series-desc">Dieci room TryHackMe completate tra agosto e settembre. Trattate vulnerabilità note su host, su Active Directory, con un plus sull'analisi post compromissione (le tracce che un attaccante lascia dietro di sè)</p>
     <details class="series">
       <summary><span class="sum-label">writeups</span><span class="sum-arrow">&#9662;</span></summary>
+      <div class="writeup-image">
+        <img src="/assets/writeups/thm-profile.png" alt="Profilo TryHackMe, room completate">
+        <div class="img-caption">Il profilo TryHackMe con le room completate</div>
+      </div>
       {% for w in items %}{% if w.lang == "it" and w.kind != "lab" and w.series == "thm-windows" %}{% include writeup-entry.html w=w lang="it" %}{% endif %}{% endfor %}
       <p class="series-foot"><a href="https://tryhackme.com/p/torchiachristian" target="_blank">Profilo TryHackMe &rarr;</a></p>
     </details>
@@ -59,6 +63,10 @@ lang: en
     <p class="series-desc">Ten TryHackMe rooms completed between August and September. They cover known vulnerabilities on hosts and on Active Directory, plus post-compromise analysis (the traces an attacker leaves behind).</p>
     <details class="series">
       <summary><span class="sum-label">writeups</span><span class="sum-arrow">&#9662;</span></summary>
+      <div class="writeup-image">
+        <img src="/assets/writeups/thm-profile.png" alt="TryHackMe profile, completed rooms">
+        <div class="img-caption">The TryHackMe profile with the completed rooms</div>
+      </div>
       {% for w in items %}{% if w.lang == "en" and w.kind != "lab" and w.series == "thm-windows" %}{% include writeup-entry.html w=w lang="en" %}{% endif %}{% endfor %}
       <p class="series-foot"><a href="https://tryhackme.com/p/torchiachristian" target="_blank">TryHackMe profile &rarr;</a></p>
     </details>
