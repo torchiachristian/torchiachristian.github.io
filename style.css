@@ -304,13 +304,30 @@ body { zoom: 0.9; }
 body { max-width: 720px; line-height: 1.7; }
 @media (max-width: 600px) { body { zoom: 1; } }
 
+/* ==================== vignettatura ==================== */
+/* sta su html con background-attachment fisso: body ha zoom,
+   che rende inaffidabile qualsiasi position:fixed al suo interno */
+
+html {
+    background-color: #ffffff;
+    background-image: radial-gradient(ellipse 70% 65% at 50% 45%,
+                      rgba(255,255,255,0) 0%,
+                      rgba(0,0,0,0.035) 60%,
+                      rgba(0,0,0,0.11) 88%,
+                      rgba(0,0,0,0.2) 100%);
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+    min-height: 100%;
+}
+body { background: transparent; }
+
 /* ==================== sezioni writeup ==================== */
 
-.series-block {
-    margin: 34px 0;
-    padding-bottom: 8px;
+.series-block { margin: 34px 0; padding-bottom: 8px; }
+.series-block + .series-block {
+    border-top: 1px solid #e0e0e0;
+    padding-top: 26px;
 }
-.series-block + .series-block { border-top: 1px solid #e6e6e6; padding-top: 26px; }
 
 h2.series-title {
     font-size: 1.18em;
@@ -327,7 +344,6 @@ h2.series-title {
     padding: 2px 7px;
     margin-left: 8px;
     vertical-align: middle;
-    letter-spacing: 0.02em;
 }
 .series-desc {
     font-size: 0.88em;
@@ -337,33 +353,34 @@ h2.series-title {
 }
 
 details.series > summary {
+    display: inline-block !important;
+    width: auto !important;
     cursor: pointer;
     list-style: none;
-    display: inline-block;
     font-size: 0.82em;
     color: #111;
-    border: 1px solid #c8c8c8;
-    background: #f4f4f4;
-    padding: 5px 12px;
+    border: 1px solid #bdbdbd;
+    background: #f2f2f2;
+    padding: 5px 11px;
     user-select: none;
 }
 details.series > summary::-webkit-details-marker { display: none; }
-details.series > summary::after {
-    content: "";
+details.series > summary::marker { content: ""; }
+details.series > summary:focus { outline: none; }
+details.series > summary:hover {
+    background: #e8e8e8;
+    border-color: #8a8a8a;
+}
+
+.sum-arrow {
     display: inline-block;
-    width: 0; height: 0;
-    margin-left: 8px;
-    vertical-align: 2px;
-    border-left: 4px solid transparent;
-    border-right: 4px solid transparent;
-    border-top: 5px solid #666;
+    margin-left: 7px;
+    color: #666;
     transition: transform 0.15s ease;
 }
-details.series[open] > summary::after { transform: rotate(180deg); }
-details.series > summary:hover::after { border-top-color: #111; }
-details.series > summary:hover { background: #ececec; border-color: #999; }
-details.series > summary:focus { outline: none; }
-details.series[open] > summary { margin-bottom: 6px; }
+details.series[open] > summary .sum-arrow { transform: rotate(180deg); }
+details.series > summary:hover .sum-arrow { color: #111; }
+details.series[open] > summary { margin-bottom: 10px; }
 
 details.series .writeup-entry:last-of-type { border-bottom: none; }
 .series-foot {
@@ -373,27 +390,11 @@ details.series .writeup-entry:last-of-type { border-bottom: none; }
     font-size: 0.82em;
 }
 
-/* ==================== vignettatura ==================== */
-/* su html e non su body: body ha zoom, che rompe position fixed */
-
-html::before {
-    content: "";
-    position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    pointer-events: none;
-    z-index: 9999;
-    background: radial-gradient(ellipse 85% 80% at 50% 50%,
-                rgba(0,0,0,0) 0%,
-                rgba(0,0,0,0) 52%,
-                rgba(0,0,0,0.10) 82%,
-                rgba(0,0,0,0.22) 100%);
-}
-
 @media (max-width: 600px) {
-    html::before {
-        background: radial-gradient(ellipse 95% 90% at 50% 50%,
-                    rgba(0,0,0,0) 0%,
-                    rgba(0,0,0,0) 60%,
-                    rgba(0,0,0,0.14) 100%);
+    html {
+        background-image: radial-gradient(ellipse 90% 85% at 50% 45%,
+                          rgba(255,255,255,0) 0%,
+                          rgba(0,0,0,0.03) 65%,
+                          rgba(0,0,0,0.13) 100%);
     }
 }
