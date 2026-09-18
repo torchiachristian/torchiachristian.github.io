@@ -43,7 +43,7 @@ https://learn.microsoft.com/en-us/windows/security/threat-protection/auditing/ev
 
 ## Premessa
 
-Kali virtualizzata su Linux Mint, VPN TryHackMe con sudo openvpn --config ~/thm.ovpn e verifica con ip a show tun0.
+Kali virtualizzata su Linux Mint, VPN TryHackMe con sudo openvpn &#45;&#45;config ~/thm.ovpn e verifica con ip a show tun0.
 
 primo intoppo prima ancora di iniziare: la connessione RDP dalla mia Kali non è mai andata.
 
@@ -141,7 +141,7 @@ escludendo Administrator (esplicitamente escluso dalla domanda) e ssm-user (acco
 
 le task pianificate sono uno dei posti più comuni dove piazzare persistenza. schtasks è il comando nativo per interrogarle, e con /fo table /nh si ottiene una lista compatta. il problema è che una Windows Server ne ha centinaia di legittime, tutte sotto \Microsoft\Windows\, quindi ho filtrato via quelle:
 
-schtasks /query /fo table /nh | findstr /v Microsoft
+schtasks /query /fo table /nh &#124; findstr /v Microsoft
 
 Folder: \
 Amazon Ec2 Launch - Instance Initializat  N/A                    Disabled
@@ -209,21 +209,21 @@ la seconda voce è la controparte della task BadrClient vista prima: uno script 
 dir C:\TMP
 
 Mode     LastWriteTime        Length   Name
--a----   3/2/2019 4:37 PM       9673   d.txt
--a----   3/2/2019 4:37 PM       3389   mim-out.txt
--a----   3/2/2019 4:37 PM     663552   mim.exe
--a----   3/2/2019 4:45 PM     176148   moutput.tmp
--a----   3/2/2019 4:37 PM      36864   nbtscan.exe
--a----   3/2/2019 4:37 PM      37640   nc.ps1
--a----   3/2/2019 4:37 PM     381816   p.exe
--a----   3/2/2019 4:46 PM          0   scan1.tmp
--a----   3/2/2019 4:46 PM          0   scan2.tmp
--a----   3/2/2019 4:46 PM          0   scan3.tmp
--a----   3/2/2019 4:45 PM       7022   schtasks-backdoor.ps1
--a----   3/2/2019 4:45 PM   40464394   somethingwindows.dmp
--a----   3/2/2019 4:46 PM      11950   sys.dmp
--a----   3/2/2019 4:37 PM      19998   wMIBackdoor.ps1
--a----   3/2/2019 4:37 PM     843776   xCmd.exe
+-a&#45;&#45;&#45;&#45;   3/2/2019 4:37 PM       9673   d.txt
+-a&#45;&#45;&#45;&#45;   3/2/2019 4:37 PM       3389   mim-out.txt
+-a&#45;&#45;&#45;&#45;   3/2/2019 4:37 PM     663552   mim.exe
+-a&#45;&#45;&#45;&#45;   3/2/2019 4:45 PM     176148   moutput.tmp
+-a&#45;&#45;&#45;&#45;   3/2/2019 4:37 PM      36864   nbtscan.exe
+-a&#45;&#45;&#45;&#45;   3/2/2019 4:37 PM      37640   nc.ps1
+-a&#45;&#45;&#45;&#45;   3/2/2019 4:37 PM     381816   p.exe
+-a&#45;&#45;&#45;&#45;   3/2/2019 4:46 PM          0   scan1.tmp
+-a&#45;&#45;&#45;&#45;   3/2/2019 4:46 PM          0   scan2.tmp
+-a&#45;&#45;&#45;&#45;   3/2/2019 4:46 PM          0   scan3.tmp
+-a&#45;&#45;&#45;&#45;   3/2/2019 4:45 PM       7022   schtasks-backdoor.ps1
+-a&#45;&#45;&#45;&#45;   3/2/2019 4:45 PM   40464394   somethingwindows.dmp
+-a&#45;&#45;&#45;&#45;   3/2/2019 4:46 PM      11950   sys.dmp
+-a&#45;&#45;&#45;&#45;   3/2/2019 4:37 PM      19998   wMIBackdoor.ps1
+-a&#45;&#45;&#45;&#45;   3/2/2019 4:37 PM     843776   xCmd.exe
 
 questa è la cartella di lavoro dell'attaccante e da sola ricostruisce mezzo attacco.
 
@@ -260,7 +260,7 @@ questa è comunque la porta d'ingresso: upload non filtrato su applicazione Java
 
 ## Fase 7 — Firewall e hosts file
 
-netsh advfirewall firewall show rule name=all | findstr /i "Rule Name LocalPort"
+netsh advfirewall firewall show rule name=all &#124; findstr /i "Rule Name LocalPort"
 
 l'output è lunghissimo perché elenca tutte le regole predefinite di Windows, ma fra Network Discovery e le regole delle app Microsoft ne spuntano due che non appartengono a nessun set standard:
 
@@ -324,7 +324,7 @@ No events found
 
 quarto con pipeline e filtro lato client:
 
-Get-WinEvent -LogName Security -Oldest | ? Id -eq 4672 | select -First 1 TimeCreated
+Get-WinEvent -LogName Security -Oldest &#124; ? Id -eq 4672 &#124; select -First 1 TimeCreated
 
 questo è rimasto appeso all'infinito: il Security log aveva 99.196 eventi e filtrare lato client significa scorrerli tutti. l'ho interrotto.
 
@@ -347,7 +347,7 @@ Privileges:       SeSecurityPrivilege
                   SeRestorePrivilege
                   SeTakeOwnershipPrivilege
                   SeDebugPrivilege
-                  ...
+                  &#46;&#46;&#46;
 
 funziona, ma la data è 2026: sono i miei stessi accessi RDP di oggi. su quell'istanza il log era ruotato e i 4672 del 2019 erano stati sovrascritti dagli eventi generati durante le tre ore di sessione, in Event Viewer ne restavano cinque in tutto e tutti odierni.
 
@@ -388,10 +388,10 @@ timeline ricostruita dell'attacco, tutti gli orari in UTC del 2 marzo 2019.
 16:47     prime scheduled task malevole registrate
 16:52     password impostata per l'account Jenny, che viene aggiunta ad Administrators insieme a Guest senza aver mai fatto login
 16:55     task "Clean file system" schedulata giornaliera, esegue C:\TMP\nc.ps1 -l 1348, bind shell permanente
---        chiave Run HKLM UpdateSvc: p.exe verso 10.34.2.3 per movimento laterale interno, output in o2.txt
---        chiave Run HKLM BadrClient: wscript su C:\badr\start-badr.vbs in modalità silenziosa
---        regole firewall inbound aggiunte a mano, 8888 e infine 1337
---        hosts file avvelenato: update.microsoft.com, virustotal e sophosupd neutralizzati verso indirizzi locali, google.com dirottato sul C2 esterno 76.32.97.132
+&#45;&#45;        chiave Run HKLM UpdateSvc: p.exe verso 10.34.2.3 per movimento laterale interno, output in o2.txt
+&#45;&#45;        chiave Run HKLM BadrClient: wscript su C:\badr\start-badr.vbs in modalità silenziosa
+&#45;&#45;        regole firewall inbound aggiunte a mano, 8888 e infine 1337
+&#45;&#45;        hosts file avvelenato: update.microsoft.com, virustotal e sophosupd neutralizzati verso indirizzi locali, google.com dirottato sul C2 esterno 76.32.97.132
 17:48:32  ultimo logon di John, ultimo accesso utente registrato sul sistema
 
 in sintesi: ingresso via upload di webshell su IIS, escalation a privilegi amministrativi, furto credenziali con mimikatz, persistenza ridondante su tre fronti (run key, scheduled task, WMI/vbs), apertura di porte in ingresso e infine accecamento delle difese più dirottamento DNS locale verso il proprio server di comando.

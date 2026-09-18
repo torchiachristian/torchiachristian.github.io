@@ -54,7 +54,7 @@ Sebbene l'enumerazione sia stata veloce, la stabilizzazione della shell ha recat
 
 full port scan seguito da uno scan mirato solo sulle porte trovate aperte, per non riscansionare 65535 porte due volte. sintassi dello scan definitivo dopo altri tentativi:
 
-IP=10.114.179.156; sudo nmap -sS -Pn -p- --min-rate 5000 -oN nmap_full.txt IP && sudo nmap -sV -sC -p (grep -oP '^\d+(?=/tcp\s+open)' nmap_full.txt | paste -sd,) -oN nmap_svc.txt $IP
+IP=10.114.179.156; sudo nmap -sS -Pn -p- &#45;&#45;min-rate 5000 -oN nmap_full.txt IP && sudo nmap -sV -sC -p (grep -oP '^\d+(?=/tcp\s+open)' nmap_full.txt &#124; paste -sd,) -oN nmap_svc.txt $IP
 
 il grep estrae le porte dal primo output e le passa al secondo comando
 
@@ -71,7 +71,7 @@ Risultato:
 8080/tcp open http Apache httpd 2.4.23 (OpenSSL/1.0.2h PHP/5.6.28)
 49152-49165/tcp open msrpc
 
--sC è l'alias di --script=default: già usato in passato, lancia tutta la categoria default di NSE e girano solo quelli pertinenti alla porta. ricordavo fosse efficace in questi target. hanno risposto gli header http server, http-title, http-methods, http-ls, ssl-cert, ssl-date, tls-alpn, smb-os-discovery, smb-security-mode, smb2-security-mode, smb2-time, nbstat, clock-skew ecc... 
+-sC è l'alias di &#45;&#45;script=default: già usato in passato, lancia tutta la categoria default di NSE e girano solo quelli pertinenti alla porta. ricordavo fosse efficace in questi target. hanno risposto gli header http server, http-title, http-methods, http-ls, ssl-cert, ssl-date, tls-alpn, smb-os-discovery, smb-security-mode, smb2-security-mode, smb2-time, nbstat, clock-skew ecc&#46;&#46;&#46; 
 
 cosa emerge, compresi i vettori che poi non ho usato:
 
@@ -81,10 +81,10 @@ resta un vettore secondario sicuramente da sottoporre a fuzzing se tutto il rest
 sulla 443 e sulla 8080 gira lo stesso Apache 2.4.23 Win32 con PHP 5.6.28.
  lo script http-ls mostra che il directory listing è attivo ed espone:
 
-| SIZE TIME FILENAME
-| - 2019-04-11 22:52 oscommerce-2.3.4/
-| - 2019-04-11 22:52 oscommerce-2.3.4/catalog/
-| - 2019-04-11 22:52 oscommerce-2.3.4/docs/
+&#124; SIZE TIME FILENAME
+&#124; - 2019-04-11 22:52 oscommerce-2.3.4/
+&#124; - 2019-04-11 22:52 oscommerce-2.3.4/catalog/
+&#124; - 2019-04-11 22:52 oscommerce-2.3.4/docs/
 
 abbiamo ottenuto la versione dell'applicazione, e senza dover fuzzare niente.
  questo è stato il mio vettore principale (ottengo verione di un servizio - poi cerco un esploit dedicato) motivato anche dalla probabilità: in room di questo livello il punto di ingresso sta quasi sempre su un webserver come ho visto spesso.
@@ -153,7 +153,7 @@ run
 [] Sending stage (72690 bytes) to 10.114.179.156
 [-] Meterpreter session 3 is not valid and will be closed
 [*] 10.114.179.156 - Meterpreter session 2 closed. Reason: Died
-...
+&#46;&#46;&#46;
 
 il modulo continua a rilanciare il payload ma ogni sessione muore appena nata. 
 sono arrivato oltre la sessione 260 prima di fermare tutto con Ctrl+C. tentativi fatti,nell'ordine:
@@ -313,7 +313,7 @@ Administrator:500:aad3b435b51404eeaad3b435b51404ee:549a1bcb88e35dc18c7a0b0168631
 Guest:501:aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0:::
 Lab:1000:aad3b435b51404eeaad3b435b51404ee:30e87bf999828446a1c1209ddde4c450:::
 
-il campo LM è identico per tutti (aad3b435... è il valore vuoto), quello che conta è l'NT hash. Guest ha 31d6cfe0d16ae931b73c59d7e0c089c0, che è l'hash della password vuota.
+il campo LM è identico per tutti (aad3b435&#46;&#46;&#46; è il valore vuoto), quello che conta è l'NT hash. Guest ha 31d6cfe0d16ae931b73c59d7e0c089c0, che è l'hash della password vuota.
 
 il cracking dell'hash di Lab ha richiesto quattro passaggi. i walkthrough in genere consigliano rockyou.txt ma io storicamente preferisco big.txt, che su questa Kali non era presente. rockyou era ancora compresso e la cartella non è scrivibile da utente,quindi va scompattato con sudo:
 

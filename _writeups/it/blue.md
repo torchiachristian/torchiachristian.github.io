@@ -54,7 +54,7 @@ nmap -Pn -sC -sV -T4 10.114.166.198
 ICMP disabilitato, da qui il -Pn in ogni scan successivo.
 provo con range di porte più ampio:
 
-nmap -Pn -T4 --top-ports 1000 10.114.166.198
+nmap -Pn -T4 &#45;&#45;top-ports 1000 10.114.166.198
 
 Risultato:
 
@@ -67,7 +67,7 @@ Risultato:
 SMB e RDP esposti, nessun dominio (niente 389/88 quindi è  macchina standalone). 
 con 445 aperto la prima cosa sensata è controllare il MS17-010, ricercato online dopo averlo letto nell'introduzione alla room prima di iniziare:
 
-nmap -Pn -p445 --script smb-os-discovery,smb-vuln-ms17-010 10.114.166.198
+nmap -Pn -p445 &#45;&#45;script smb-os-discovery,smb-vuln-ms17-010 10.114.166.198
 stiamo dicendo a nmap di eseguire due script NSE precisi che contiene dentro sé= 
 smb-os-discovery interroga SMB e prova a ricavare OS, hostname, dominio, versione Windows che possono tornarci molto utili visto che andrà usato Metasploit (soprattutto la versione).
 smb-vuln-ms17-010 verifica solo se SMB è vulnerabile a MS17-010 (EternalBlue)
@@ -136,7 +136,7 @@ Administrator, Jon, Public. parto da Jon:
 dir C:\Users\Jon\Documents
 
 Directory of C:\Users\Jon\Documents
-....
+&#46;&#46;&#46;.
 07/31/2026 01:29 PM 37 flag3.txt
 
 type C:\Users\Jon\Documents\flag3.txt

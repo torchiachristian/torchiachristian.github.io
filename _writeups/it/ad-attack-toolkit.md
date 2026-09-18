@@ -61,7 +61,7 @@ Nota: in fase di promozione il NetBIOS del dominio è stato scritto PSYCHOSE inv
 
 Tool clonato dal mio repo, ambiente virtuale attivato, dipendenze (ldap3, impacket,reportlab), e lancio contro il DC:
 
-python3 ad_attack.py --dc-ip 192.168.56.10 --domain psychosec.local -u labadmin -p '****' --all
+python3 ad_attack.py &#45;&#45;dc-ip 192.168.56.10 &#45;&#45;domain psychosec.local -u labadmin -p '****' &#45;&#45;all
 
 Crash in Fase 1:
 
@@ -117,7 +117,7 @@ Dopo il fix, Fase 1 pulita: 12 utenti enumerati, 48 gruppi, 2 target AS-REP, 2 t
 
 Catturati i due hash ASREP (in etype 23, RC4):
 
-$krb5asrep$23$user.nopreauth@PSYCHOSEC.LOCAL:e868...c36a6
+$krb5asrep$23$user.nopreauth@PSYCHOSEC.LOCAL:e868&#46;&#46;&#46;c36a6
 
 Primo tentativo di cracking con libreria rockyou.txt: esito Exhausted, zero recuperati. Non un bug ma realismo. Le password del lab (struttura Parola+numeri+simbolo) pur essendo deboli per policy non comparivano come righe esatte nel dizionario. Con una wordlist mirata:
 
@@ -160,8 +160,8 @@ Il primo campo conteneva l'SPN intero MSSQLSvc/DC01.psychosec.local:1433. I due 
 
 Confrontando con impacket:
 
-  mio:       ...*$869409c2...   (cipher tutto attaccato)
-  impacket:  ...*$e8d4d970b4a4b02345c89d3900fa30a9$fc15...   (un $ dopo 32 hex)
+  mio:       &#46;&#46;&#46;*$869409c2&#46;&#46;&#46;   (cipher tutto attaccato)
+  impacket:  &#46;&#46;&#46;*$e8d4d970b4a4b02345c89d3900fa30a9$fc15&#46;&#46;&#46;   (un $ dopo 32 hex)
 
 hashcat vuole il checksum (primi 16 byte =32 hex) separato dal resto del ticket con un $. Il mio tool buttava tutto il cipher in un blocco unico. 
 Blocco inserito: 

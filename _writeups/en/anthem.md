@@ -53,7 +53,7 @@ the machine expired right after reading the root flag and without a subscription
 
 same scanning scheme as the previous room:
 
-IP=10.112.170.81; sudo nmap -sS -Pn -p- --min-rate 5000 -oN anthem_full.txt IP && sudo nmap -sV -sC -p (grep -oP '^\d+(?=/tcp\s+open)' anthem_full.txt | paste -sd,) -oN anthem_svc.txt $IP
+IP=10.112.170.81; sudo nmap -sS -Pn -p- &#45;&#45;min-rate 5000 -oN anthem_full.txt IP && sudo nmap -sV -sC -p (grep -oP '^\d+(?=/tcp\s+open)' anthem_full.txt &#124; paste -sd,) -oN anthem_svc.txt $IP
 
 Not shown: 65533 filtered tcp ports (no-response)
 80/tcp open http
@@ -65,11 +65,11 @@ sudo nmap -sV -sC -Pn -p80,3389 -oN anthem_svc.txt 10.112.170.81
 
 80/tcp open http Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
 3389/tcp open ms-wbt-server Microsoft Terminal Services
-| rdp-ntlm-info:
-| Target_Name: WIN-LU09299160F
-| NetBIOS_Domain_Name: WIN-LU09299160F
-| DNS_Computer_Name: WIN-LU09299160F
-| Product_Version: 10.0.17763
+&#124; rdp-ntlm-info:
+&#124; Target_Name: WIN-LU09299160F
+&#124; NetBIOS_Domain_Name: WIN-LU09299160F
+&#124; DNS_Computer_Name: WIN-LU09299160F
+&#124; Product_Version: 10.0.17763
 
 Windows Server 2019, hostname WIN-LU09299160F, and the fact that the NetBIOS domain and the machine name coincide confirms it isn't domain-joined: the accounts are local. all the other 65533 ports are filtered, not closed, so there's a firewall that drops rather than refuses .
 
@@ -81,17 +81,17 @@ with only two ports and no vulnerable version in sight, the webserver is the onl
 
 instead of opening the site in a browser I read the raw HTML directly, which is faster and also shows what the browser doesn't render:
 
-curl -s http://10.112.170.81/ | head -60
+curl -s http://10.112.170.81/ &#124; head -60
 
 from the head of the page comes everything needed to frame the application:
 
-<link href="/DependencyHandler.axd?s=L0FwcF9QbHVnaW5zL0FydGljdWxhdGUvVGhlbWVzL1ZBUE9SL... <div class="bloglogo" style="background: url(/media/articulate/default/capture3.png...
+<link href="/DependencyHandler.axd?s=L0FwcF9QbHVnaW5zL0FydGljdWxhdGUvVGhlbWVzL1ZBUE9SL&#46;&#46;&#46; <div class="bloglogo" style="background: url(/media/articulate/default/capture3.png&#46;&#46;&#46;
 
 the path /App_Plugins/Articulate/Themes/VAPOR/ (also readable in base64 inside the DependencyHandler) identifies Umbraco as the CMS, with the Articulate blog plugin and the VAPOR theme on top. the plugin's standard endpoints are also exposed: /rss, /archive/, /categories, /tags, /opensearch, /rsd/1073, /wlwmanifest/1073.
 
 and in the search bar, inside the placeholder attribute, there is the first flag:
 
-<input type="text" name="term" placeholder="Search... THM{G!T_G00D}" />
+<input type="text" name="term" placeholder="Search&#46;&#46;&#46; THM{G!T_G00D}" />
 
 invisible when looking at the page, because the text is preceded by about fifty spaces and gets truncated by the field. it's only visible in the source.
 
@@ -126,7 +126,7 @@ I have the password, the username is missing. the blog posts are two, "We are hi
 
 first mistake: I tried to guess the post URLs with the date scheme typical of WordPress (/2021/04/we-are-hiring/), and Articulate always answered me with the archive page instead of the single post, making me believe for a couple of attempts that I was reading the right content. the real links are in the RSS feed, which the blog exposes and which nobody was stopping me from reading:
 
-curl -s http://10.112.170.81/rss | grep -oP '(?<=<link>)[^<]+'
+curl -s http://10.112.170.81/rss &#124; grep -oP '(?<=<link>)[^<]+'
 
 http://10.112.170.81/
 http://10.112.170.81/archive/we-are-hiring/
@@ -134,12 +134,12 @@ http://10.112.170.81/archive/a-cheers-to-our-it-department/
 
 the second post contains the poem:
 
-curl -s http://10.112.170.81/archive/a-cheers-to-our-it-department/ | sed -e 's/<[^>]>//g' | grep -v '^\s$' | head -40
+curl -s http://10.112.170.81/archive/a-cheers-to-our-it-department/ &#124; sed -e 's/<[^>]>//g' &#124; grep -v '^\s$' &#124; head -40
 
 During our hard times our beloved admin managed to save our business by redesigning the entire website.
 As we all around here knows how much I love writing poems I decided to write one about him:
 Born on a Monday,Christened on Tuesday,Married on Wednesday,Took ill on Thursday,
-Grew worse on Friday,Died on Saturday,Buried on Sunday.That was the end...
+Grew worse on Friday,Died on Saturday,Buried on Sunday.That was the end&#46;&#46;&#46;
 Author
 James Orchard Halliwell
 
@@ -187,23 +187,23 @@ it works both uppercase and lowercase because Windows doesn't distinguish case i
 
 the first flag was in an HTML attribute, so it's worth grepping the source of every page instead of reading them by eye:
 
-curl -s 'http://10.112.170.81/archive/we-are-hiring/' | grep -iE 'user|admin|THM|<!--'
+curl -s 'http://10.112.170.81/archive/we-are-hiring/' &#124; grep -iE 'user&#124;admin&#124;THM&#124;<!&#45;&#45;'
 
 <meta content="THM{L0L_WH0_US3S_M3T4}" property="og:description" />
 
 same treatment on the other post:
 
-curl -s 'http://10.112.170.81/archive/a-cheers-to-our-it-department/' | grep -iE 'THM|<!--|user'
+curl -s 'http://10.112.170.81/archive/a-cheers-to-our-it-department/' &#124; grep -iE 'THM&#124;<!&#45;&#45;&#124;user'
 
 <meta content="THM{AN0TH3R_M3TA}" property="og:description" />
 
 the og:description field is the text that would appear in the preview when the link is shared on a social network. nobody reads it in the browser, and that's why they put the flags in there.
 
-(note on braces: grep -iE "THM{...}" with double quotes in zsh gives "event not found" because of the exclamation mark and history expansion. with single quotes it works.)
+(note on braces: grep -iE "THM{&#46;&#46;&#46;}" with double quotes in zsh gives "event not found" because of the exclamation mark and history expansion. with single quotes it works.)
 
 the fourth flag I didn't find during the session, and with the machine expired I recovered it from a public writeup. it's in the Website field of the author's profile page, /authors/jane-doe/, which Articulate generates automatically for every author and which is linked from the signature at the bottom of the posts:
 
-curl -s http://10.112.170.81/authors/jane-doe/ | grep -o 'THM{[^}]*}'
+curl -s http://10.112.170.81/authors/jane-doe/ &#124; grep -o 'THM{[^}]*}'
 
 THM{L0L_WH0_D15}
 
@@ -307,7 +307,7 @@ nmap → only 80 and 3389, Windows Server 2019 not domain-joined
 
 the signature at the bottom of a piece of content says who wrote it, not who it is about. all the difficulty of this room was there, and I burned about fifteen login attempts on two wrong people before rereading the sentence that introduced the poem, where it was written in plain text that the piece was dedicated to the admin and not signed by him.
 
-when one flag is found in an HTML attribute, all the others will be in the same kind of place. after the first one in the placeholder I should have immediately grepped every page generated by the CMS, including the secondary ones like the author profiles, instead of limiting myself to the main content. the command for p in / /categories /tags /archive/ /authors/; do curl -s "$IP$p" | grep -o 'THM{[^}]*}'; done would have closed the phase in one go.
+when one flag is found in an HTML attribute, all the others will be in the same kind of place. after the first one in the placeholder I should have immediately grepped every page generated by the CMS, including the secondary ones like the author profiles, instead of limiting myself to the main content. the command for p in / /categories /tags /archive/ /authors/; do curl -s "$IP$p" &#124; grep -o 'THM{[^}]*}'; done would have closed the phase in one go.
 
 testing credentials with a tool that speaks the protocol (nxc) instead of with the full client (xfreerdp) changes the timings by an order of magnitude when the attempts are many. the same applies every time you need to try a list of usernames.
 

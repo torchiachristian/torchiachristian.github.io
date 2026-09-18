@@ -33,7 +33,7 @@ Catena: RCE Next.js → SQLite dump → MD5 crack → SSH user → Node Inspecto
 
 Port scan iniziale:
 
-nmap -p- --min-rate=5000 10.129.9.91
+nmap -p- &#45;&#45;min-rate=5000 10.129.9.91
 nmap -sV -p 22,3000 10.129.9.91
 
 Risultato: porta 22 (SSH, OpenSSH 9.6p1) e porta 3000. Nmap non riconosce il servizio sulla 3000, ma i response headers la identificano come Next.js:
@@ -63,7 +63,7 @@ Ho anche tentato brute force SSH con username basati sui profili dello staff vis
 Testando gli endpoint interni di Next.js, l'endpoint /_next/image risponde 400 invece di 404, confermando che esiste. Più importante: la versione 15.0.3 è vulnerabile a CVE-2025-55182 (React2Shell). Lo verifico inviando una richiesta con gli header RSC tipici del protocollo React Server Components:
 
 curl -s -H "RSC: 1" -H "Next-Action: anything" -H "Content-Type: text/plain" \
-  --data-binary '...' \
+  &#45;&#45;data-binary '&#46;&#46;&#46;' \
   http://10.129.9.91:3000/ -w "%{http_code}"
 
 Risposta 200. Il server accetta richieste RSC ed è vulnerabile.
@@ -114,13 +114,13 @@ Accesso riuscito. Il file user.txt è nella home.
 
 Enumerazione iniziale: sudo -l nega tutto, nessun SUID sospetto. Guardo i processi attivi:
 
-ps aux | grep node
+ps aux &#124; grep node
 
-Trovo due processi Node.js. Uno gira come root con il flag --inspect=127.0.0.1:9229. Questo attiva il debugger di Node.js sulla porta 9229, che accetta connessioni WebSocket e permette di eseguire codice JavaScript arbitrario nel contesto del processo — in questo caso, root.
+Trovo due processi Node.js. Uno gira come root con il flag &#45;&#45;inspect=127.0.0.1:9229. Questo attiva il debugger di Node.js sulla porta 9229, che accetta connessioni WebSocket e permette di eseguire codice JavaScript arbitrario nel contesto del processo — in questo caso, root.
 
 Recupero il session ID del debugger:
 
-node -e "const http=require('http'); /* GET /json su 127.0.0.1:9229 */ ..."
+node -e "const http=require('http'); /* GET /json su 127.0.0.1:9229 */ &#46;&#46;&#46;"
 
 Ottengo il webSocketDebuggerUrl con l'UUID della sessione. Il modulo ws non è disponibile, quindi costruisco l'handshake WebSocket manualmente via TCP con Python, poi invio un messaggio Chrome DevTools Protocol:
 
@@ -146,7 +146,7 @@ RCE unauthenticated su Next.js 15.0.3 (CVE-2025-55182)
 
 ## Note difensive
 
-Aggiornare Next.js a versione 15.0.5 o superiore (fix per CVE-2025-55182). Non usare --inspect su processi in produzione, e mai su processi con privilegi elevati. Sostituire MD5 con bcrypt o Argon2 per gli hash delle password. I servizi di monitoraggio non hanno bisogno di girare come root: principio di least privilege.
+Aggiornare Next.js a versione 15.0.5 o superiore (fix per CVE-2025-55182). Non usare &#45;&#45;inspect su processi in produzione, e mai su processi con privilegi elevati. Sostituire MD5 con bcrypt o Argon2 per gli hash delle password. I servizi di monitoraggio non hanno bisogno di girare come root: principio di least privilege.
 
 <div class="writeup-image">
   <img src="/assets/writeups/reactor.png" alt="Proof of pwn">

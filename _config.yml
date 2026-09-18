@@ -6,6 +6,7 @@ highlighter: none
 kramdown:
   input: GFM
   hard_wrap: true
+  smart_quotes: ["apos", "apos", "quot", "quot"]
 
 collections:
   writeups:

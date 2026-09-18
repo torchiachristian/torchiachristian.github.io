@@ -43,7 +43,7 @@ https://learn.microsoft.com/en-us/windows/security/threat-protection/auditing/ev
 
 ## Preface
 
-Kali virtualised on Linux Mint, TryHackMe VPN with sudo openvpn --config ~/thm.ovpn and verification with ip a show tun0.
+Kali virtualised on Linux Mint, TryHackMe VPN with sudo openvpn &#45;&#45;config ~/thm.ovpn and verification with ip a show tun0.
 
 first snag before even starting: the RDP connection from my Kali never worked.
 
@@ -141,7 +141,7 @@ excluding Administrator (explicitly excluded by the question) and ssm-user (a le
 
 scheduled tasks are one of the most common places to plant persistence. schtasks is the native command to query them, and with /fo table /nh you get a compact list. the problem is that a Windows Server has hundreds of legitimate ones, all under \Microsoft\Windows\, so I filtered those out:
 
-schtasks /query /fo table /nh | findstr /v Microsoft
+schtasks /query /fo table /nh &#124; findstr /v Microsoft
 
 Folder: \
 Amazon Ec2 Launch - Instance Initializat  N/A                    Disabled
@@ -209,21 +209,21 @@ the second entry is the counterpart of the BadrClient task seen earlier: a vbs s
 dir C:\TMP
 
 Mode     LastWriteTime        Length   Name
--a----   3/2/2019 4:37 PM       9673   d.txt
--a----   3/2/2019 4:37 PM       3389   mim-out.txt
--a----   3/2/2019 4:37 PM     663552   mim.exe
--a----   3/2/2019 4:45 PM     176148   moutput.tmp
--a----   3/2/2019 4:37 PM      36864   nbtscan.exe
--a----   3/2/2019 4:37 PM      37640   nc.ps1
--a----   3/2/2019 4:37 PM     381816   p.exe
--a----   3/2/2019 4:46 PM          0   scan1.tmp
--a----   3/2/2019 4:46 PM          0   scan2.tmp
--a----   3/2/2019 4:46 PM          0   scan3.tmp
--a----   3/2/2019 4:45 PM       7022   schtasks-backdoor.ps1
--a----   3/2/2019 4:45 PM   40464394   somethingwindows.dmp
--a----   3/2/2019 4:46 PM      11950   sys.dmp
--a----   3/2/2019 4:37 PM      19998   wMIBackdoor.ps1
--a----   3/2/2019 4:37 PM     843776   xCmd.exe
+-a&#45;&#45;&#45;&#45;   3/2/2019 4:37 PM       9673   d.txt
+-a&#45;&#45;&#45;&#45;   3/2/2019 4:37 PM       3389   mim-out.txt
+-a&#45;&#45;&#45;&#45;   3/2/2019 4:37 PM     663552   mim.exe
+-a&#45;&#45;&#45;&#45;   3/2/2019 4:45 PM     176148   moutput.tmp
+-a&#45;&#45;&#45;&#45;   3/2/2019 4:37 PM      36864   nbtscan.exe
+-a&#45;&#45;&#45;&#45;   3/2/2019 4:37 PM      37640   nc.ps1
+-a&#45;&#45;&#45;&#45;   3/2/2019 4:37 PM     381816   p.exe
+-a&#45;&#45;&#45;&#45;   3/2/2019 4:46 PM          0   scan1.tmp
+-a&#45;&#45;&#45;&#45;   3/2/2019 4:46 PM          0   scan2.tmp
+-a&#45;&#45;&#45;&#45;   3/2/2019 4:46 PM          0   scan3.tmp
+-a&#45;&#45;&#45;&#45;   3/2/2019 4:45 PM       7022   schtasks-backdoor.ps1
+-a&#45;&#45;&#45;&#45;   3/2/2019 4:45 PM   40464394   somethingwindows.dmp
+-a&#45;&#45;&#45;&#45;   3/2/2019 4:46 PM      11950   sys.dmp
+-a&#45;&#45;&#45;&#45;   3/2/2019 4:37 PM      19998   wMIBackdoor.ps1
+-a&#45;&#45;&#45;&#45;   3/2/2019 4:37 PM     843776   xCmd.exe
 
 this is the attacker's working folder and on its own it reconstructs half the attack.
 
@@ -260,7 +260,7 @@ this is nevertheless the entry point: unfiltered upload on an exposed Java appli
 
 ## Phase 7 — Firewall and hosts file
 
-netsh advfirewall firewall show rule name=all | findstr /i "Rule Name LocalPort"
+netsh advfirewall firewall show rule name=all &#124; findstr /i "Rule Name LocalPort"
 
 the output is extremely long because it lists all of Windows' predefined rules, but among Network Discovery and the Microsoft app rules two pop out that don't belong to any standard set:
 
@@ -324,7 +324,7 @@ No events found
 
 fourth with a pipeline and client-side filtering:
 
-Get-WinEvent -LogName Security -Oldest | ? Id -eq 4672 | select -First 1 TimeCreated
+Get-WinEvent -LogName Security -Oldest &#124; ? Id -eq 4672 &#124; select -First 1 TimeCreated
 
 this hung forever: the Security log had 99,196 events and filtering client-side means going through them all. I interrupted it.
 
@@ -347,7 +347,7 @@ Privileges:       SeSecurityPrivilege
                   SeRestorePrivilege
                   SeTakeOwnershipPrivilege
                   SeDebugPrivilege
-                  ...
+                  &#46;&#46;&#46;
 
 it works, but the date is 2026: these are my own RDP logins from today. on that instance the log had rotated and the 4672 events from 2019 had been overwritten by the events generated during the three hours of the session, in Event Viewer there were five left in total and all of them from today.
 
@@ -388,10 +388,10 @@ reconstructed timeline of the attack, all times in UTC of 2 March 2019.
 16:47     first malicious scheduled tasks registered
 16:52     password set for the account Jenny, which is added to Administrators together with Guest without ever having logged in
 16:55     task "Clean file system" scheduled daily, runs C:\TMP\nc.ps1 -l 1348, a permanent bind shell
---        HKLM Run key UpdateSvc: p.exe towards 10.34.2.3 for internal lateral movement, output into o2.txt
---        HKLM Run key BadrClient: wscript on C:\badr\start-badr.vbs in silent mode
---        inbound firewall rules added by hand, 8888 and finally 1337
---        hosts file poisoned: update.microsoft.com, virustotal and sophosupd neutralised towards local addresses, google.com hijacked to the external C2 76.32.97.132
+&#45;&#45;        HKLM Run key UpdateSvc: p.exe towards 10.34.2.3 for internal lateral movement, output into o2.txt
+&#45;&#45;        HKLM Run key BadrClient: wscript on C:\badr\start-badr.vbs in silent mode
+&#45;&#45;        inbound firewall rules added by hand, 8888 and finally 1337
+&#45;&#45;        hosts file poisoned: update.microsoft.com, virustotal and sophosupd neutralised towards local addresses, google.com hijacked to the external C2 76.32.97.132
 17:48:32  John's last logon, the last user access recorded on the system
 
 in summary: entry through a webshell upload on IIS, escalation to administrative privileges, credential theft with mimikatz, redundant persistence on three fronts (run key, scheduled task, WMI/vbs), opening of inbound ports and finally blinding of the defences plus local DNS hijacking towards its own command server.

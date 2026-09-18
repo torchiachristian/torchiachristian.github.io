@@ -160,7 +160,7 @@ L'assembly caricato registra 5 opcode aggiuntivi:
 Due messaggi di esito precaricati in memoria VM:
 
   0x12000  ">>> Yay, exacly! How pretty!"
-  0x12100  ">>> No no no... it's something different!"
+  0x12100  ">>> No no no&#46;&#46;&#46; it's something different!"
 
 ---
 
@@ -290,11 +290,11 @@ def u32(x): return x & MASK
 
 def rol(x, n):
     n &= 31
-    return u32((x << n) | (x >> ((32-n) & 31)))
+    return u32((x << n) &#124; (x >> ((32-n) & 31)))
 
 def ror(x, n):
     n &= 31
-    return u32((x >> n) | (x << ((32-n) & 31)))
+    return u32((x >> n) &#124; (x << ((32-n) & 31)))
 
 def sar(x, n):
     sx = x if x < 0x80000000 else x - 0x100000000
@@ -387,7 +387,7 @@ Il bytecode VM è stato rieseguito sotto emulazione usando la stringa recuperata
 
 Un input errato raggiunge invece il ramo di fallimento:
 
-  >>> No no no... it's something different!
+  >>> No no no&#46;&#46;&#46; it's something different!
 
 Questo conferma l'intera catena: parsing del bundle, decrittazione delle risorse, estensione degli opcode, unpacking della DLL nativa, invocazione degli export nativi, inversione dei 16 blocchi del validatore.
 
@@ -407,7 +407,7 @@ Perché non ci si è accorti prima? Perché quella VM viene caricata da una "ris
 
 Ecco perché il debugger non trovava mai il punto giusto: si cercava un confronto diretto in codice x86, ma il vero confronto avviene dentro questo mini-computer finto, che esegue istruzioni sue proprie, diverse da x86. un debugger normale non "vede" quella logica allo stesso modo, perché il ciclo che il debugger intercetta è solo il dispatch generico della VM, uguale per ogni istruzione bytecode, non la logica di validazione specifica.
 
-C'era anche un secondo trabocchetto: la DLL nativa che si era provato a disassemblare era compressa, tipo uno zip. I nomi delle funzioni trovati (th3_fl4g_i5_h1dden...) sembravano un indizio leggibile, ma erano finti, un'esca messa apposta dalla challenge, perché a runtime il programma li rinomina in base all'hash del nome del computer.
+C'era anche un secondo trabocchetto: la DLL nativa che si era provato a disassemblare era compressa, tipo uno zip. I nomi delle funzioni trovati (th3_fl4g_i5_h1dden&#46;&#46;&#46;) sembravano un indizio leggibile, ma erano finti, un'esca messa apposta dalla challenge, perché a runtime il programma li rinomina in base all'hash del nome del computer.
 
 ---
 
@@ -492,14 +492,14 @@ CAUSA REALE (nota solo dopo la soluzione, Fase 7): questi RVA (0x1440-0x1c90) ap
 Test tramite `printf` con vari wrapper (flag{}, CTF{}, cimple{}, sasc{}, ecc.), nessun test contro il programma reale a questo punto, solo costruzione di candidati.
 
 Primo tentativo di esecuzione diretta:
-  echo "..." | wine ...exe
+  echo "&#46;&#46;&#46;" &#124; wine &#46;&#46;&#46;exe
   -> "You must install .NET to run this application" (dotnet mancante nel prefix Wine)
 
 Installato dotnet-runtime-8.0 nativo Linux via apt (inutile per Wine, serve nel prefix Wine, non sul sistema host), poi risolto correttamente con winetricks dotnet8.
 
 Con Wine + dotnet8 funzionante: il programma gira, mostra ASCII art e prompt, ma la stringa "th3_fl4g_i5_h1dden_1n_th3_d4rk" (e tutte le varianti con wrapper) produce sempre:
 
-  >>> No no no... it's something different!
+  >>> No no no&#46;&#46;&#46; it's something different!
 
 CAUSA REALE (Fase 7): i nomi degli export sono un DEPISTAGGIO strutturale. A runtime CimpleNative calcola un hash del nome macchina e riscrive la tabella export con nomi diversi, dipendenti dall'host. i nomi statici letti dal file su disco non sono mai usati come tali dal validatore.
 
@@ -511,13 +511,13 @@ Tentativo 2 — gdb generate-core-file completo: il core file ha raggiunto oltre
 
 Tentativo 3 — dump mirato via script Python (lettura diretta di /proc/pid/mem su region rw-p anonime, escludendo file >200MB): completato con successo (101MB di dump), ma nessun pattern "flag{"/"kaspersky{"/ecc. trovato via grep su strings.
 
-CAUSA REALE (Fase 8): il validatore non costruisce mai la flag in chiaro in memoria, lavora esclusivamente su rappresentazioni numeriche a 32 bit trasformate, confrontate con 16 costanti precalcolate. Non esiste, per costruzione, un momento in cui la stringa "kaspersky{...}" sia presente in memoria salvo che l'utente non l'abbia già digitata correttamente.
+CAUSA REALE (Fase 8): il validatore non costruisce mai la flag in chiaro in memoria, lavora esclusivamente su rappresentazioni numeriche a 32 bit trasformate, confrontate con 16 costanti precalcolate. Non esiste, per costruzione, un momento in cui la stringa "kaspersky{&#46;&#46;&#46;}" sia presente in memoria salvo che l'utente non l'abbia già digitata correttamente.
 
 ### Tentativo di breakpoint su VirtualProtect
 
 gdb con breakpoint sulla funzione VirtualProtect (API usata dal loader per rendere eseguibile la memoria scritta a runtime): un solo hit intercettato, con newprot=0 (PAGE_NOACCESS), non correlato al momento di interesse per la decompressione del codice nativo. Il vero mprotect rilevante (verso PAGE_EXECUTE) non è mai stato isolato con questo approccio.
 
-Analisi via strace -e trace=mprotect: confermata una chiamata mprotect(0x100051000, 69632, PROT_READ|PROT_EXEC), l'offset 69632 = 0x11000 coincide esattamente con l'offset del buffer input già noto dall'analisi IL. Questo ha confermato correttamente l'indirizzo virtuale runtime del buffer (0x100000000 + 0x11000 = 0x100011000), ma si riferisce alla memoria lineare della VM, non al codice nativo decompresso dello stub, che risiede a un'altra regione (RVA 0x1000-0x9000 nell'immagine di CimpleNative) mai isolata specificamente con mprotect tracing mirato.
+Analisi via strace -e trace=mprotect: confermata una chiamata mprotect(0x100051000, 69632, PROT_READ&#124;PROT_EXEC), l'offset 69632 = 0x11000 coincide esattamente con l'offset del buffer input già noto dall'analisi IL. Questo ha confermato correttamente l'indirizzo virtuale runtime del buffer (0x100000000 + 0x11000 = 0x100011000), ma si riferisce alla memoria lineare della VM, non al codice nativo decompresso dello stub, che risiede a un'altra regione (RVA 0x1000-0x9000 nell'immagine di CimpleNative) mai isolata specificamente con mprotect tracing mirato.
 
 ### Hardware watchpoint su 0x100011000
 

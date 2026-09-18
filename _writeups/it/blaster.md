@@ -50,9 +50,9 @@ nmap -Pn -sC -sV 10.114.185.56
 Risultato:
 
 80/tcp   open  http          Microsoft IIS httpd 10.0
-| http-title: IIS Windows Server
+&#124; http-title: IIS Windows Server
 3389/tcp open  ms-wbt-server Microsoft Terminal Services
-| ssl-cert: Subject: commonName=RetroWeb
+&#124; ssl-cert: Subject: commonName=RetroWeb
 Target_Name: RETROWEB
 DNS_Computer_Name: RetroWeb
 Product_Version: 10.0.14393
@@ -83,7 +83,7 @@ dirb http://10.114.185.153 /usr/share/dirb/wordlists/big.txt
 ==> DIRECTORY: http://10.114.185.153/retro/wp-includes/
 (!) FATAL: Too many errors connecting to host
 
-il dirb pesante ha mandato in crash il servizio: verifico con curl --max-time 5 -I http://10.114.185.153/retro/ e ottengo connection timed out. conferma definitiva con:
+il dirb pesante ha mandato in crash il servizio: verifico con curl &#45;&#45;max-time 5 -I http://10.114.185.153/retro/ e ottengo connection timed out. conferma definitiva con:
 
 nmap -Pn -p80,3389 10.114.185.153
 80/tcp   filtered http
@@ -101,7 +101,7 @@ di nuovo online. la struttura /retro/wp-admin/, /retro/wp-content/, /retro/wp-in
 
 ## Fase 3 — Ricognizione WordPress
 
-curl --max-time 5 -i http://10.114.160.81/retro/
+curl &#45;&#45;max-time 5 -i http://10.114.160.81/retro/
 
 HTTP/1.1 200 OK
 Server: Microsoft-IIS/10.0
@@ -111,7 +111,7 @@ Link: <http://localhost/retro/index.php/wp-json/>; rel="https://api.w.org/"
 
 la conferma che /retro/ esiste e risponde 200 OK, che è WordPress, e la versione di PHP (7.1.29, piuttosto datata). il campo Link conferma esplicitamente la presenza della REST API di WordPress su /retro/index.php/wp-json/.
 
-curl --max-time 10 -s http://10.114.149.248/retro/index.php/wp-json/ | jq > /tmp/wp-api.json
+curl &#45;&#45;max-time 10 -s http://10.114.149.248/retro/index.php/wp-json/ &#124; jq > /tmp/wp-api.json
 wc -c /tmp/wp-api.json
 142739 /tmp/wp-api.json
 
@@ -125,7 +125,7 @@ su questo punto vale una premessa: interrogare in modo estensivo la REST API di 
 
 le istruzioni della room indirizzano chiaramente: prima trovare uno username navigando /retro, poi cercare una password nei post, dato che l'utente avrebbe avuto "difficoltà a fare login di recente". provo prima /wp/v2/posts via API, senza risultati utili. provo poi a cercare riferimenti ad autori direttamente nell'HTML della homepage:
 
-curl --max-time 5 -s http://10.114.132.0/retro/ | grep -oE 'href="[^"]+"' | grep '/retro/' | head -30
+curl &#45;&#45;max-time 5 -s http://10.114.132.0/retro/ &#124; grep -oE 'href="[^"]+"' &#124; grep '/retro/' &#124; head -30
 
 dai permalink emerge ripetutamente /retro/index.php/author/wade/, username potenziale: wade. dalla stessa homepage recupero anche i permalink dei post pubblicati (Tron Arcade Cabinet, Zelda Hidden Fan Room, Pac-Man Walkthrough, Ready Player One, Hello World).
 
@@ -144,7 +144,7 @@ scorrendo il post fino in fondo trovo un link "LOG IN" che porta a /retro/wp-log
 Prove concrete dell'accesso:
 
 Dashboard WordPress, saluto "Howdy, Wade" in alto a destra
-Accesso a /wp-admin/plugins.php con azioni disponibili: Activate | Deactivate | Update | Delete
+Accesso a /wp-admin/plugins.php con azioni disponibili: Activate &#124; Deactivate &#124; Update &#124; Delete
 4 plugin presenti, di cui 2 attivi e 2 inattivi, disattivabili liberamente
 WordPress 5.7.2 running 90s Retro theme
 6 Posts, 1 Comment nel pannello Activity
@@ -178,7 +178,7 @@ esplorando il resto del filesystem: C:\Users\Wade\Downloads è vuoto, mentre sul
 
 da PowerShell recupero i metadati del binario:
 
-(Get-Item "$env:USERPROFILE\Desktop\hhupd.exe").VersionInfo | Format-List *
+(Get-Item "$env:USERPROFILE\Desktop\hhupd.exe").VersionInfo &#124; Format-List *
 
 FileVersionRaw     : 4.71.1015.0
 ProductName        : HTML Help 1.31 Update

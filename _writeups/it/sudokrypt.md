@@ -66,7 +66,7 @@ il vincolo che conta:
 def encrypt_block(self, plaintext):
     if self.flag_taken:
         raise RuntimeError("encrypt oracle is closed after encrypted flag")
-    ...
+    &#46;&#46;&#46;
     self.remaining -= 1
     return self.crypt_block(plaintext)
 
@@ -77,7 +77,7 @@ la flag invece viene cifrata da:
 def encrypt_flag(self):
     self.flag_taken = True
     self.prng.fold_for_flag()
-    ...
+    &#46;&#46;&#46;
 
 quel fold_for_flag è la distinzione che conterà alla fine.
 
@@ -141,7 +141,7 @@ symbol = ((byte & 15) - q) & 15
 
 cioè:
 
-byte = q << 4 | (symbol + q)
+byte = q << 4 &#124; (symbol + q)
 q = nibble alto
 symbol = nibble basso - q mod 16
 
@@ -151,18 +151,18 @@ la word interna è:
 
 return (
     self.q_perm[q] << 12
-) | (
+) &#124; (
     row_field << 8
-) | (
+) &#124; (
     col_field << 4
-) | check
+) &#124; check
 
 cioè:
 
  15          12 11         8 7          4 3         0
-+--------------+------------+------------+-----------+
-|   q_label    | row_field  | col_field  |   check   |
-+--------------+------------+------------+-----------+
++&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;+&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;+&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;+&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;-+
+&#124;   q_label    &#124; row_field  &#124; col_field  &#124;   check   &#124;
++&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;+&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;+&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;+&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;-+
 
 dopo aver invertito public_wrapper otteniamo esattamente questi quattro campi.
 
@@ -176,7 +176,7 @@ high = stream_value >> 8
 mask = (stream_value >> 4) & 15
 low  = stream_value & 15
 
-quindi lo stream è un valore a 12 bit, high|mask|low su 8+4+4. e poi:
+quindi lo stream è un valore a 12 bit, high&#124;mask&#124;low su 8+4+4. e poi:
 
 row_code  = SBOX[low]
 base_col  = (self.symbol_inv[symbol] - row_code) & 15
@@ -196,7 +196,7 @@ in modulo 16 l'inverso di 3 è 11, perché 3 * 11 = 33 = 1 mod 16. quindi:
 
 row_code = 11 * (sinv + 2*row_field - col_field) mod 16
 
-e da lì low = SBOX_INV[row_code], mask = row_field - row_code, base_col = sinv - row_code, high = check ^ SBOX[...].
+e da lì low = SBOX_INV[row_code], mask = row_field - row_code, base_col = sinv - row_code, high = check ^ SBOX[&#46;&#46;&#46;].
 
 conclusione: da una ciphertext word possiamo ricostruire lo stream_value, a patto di conoscere symbol_inv[symbol].
 
@@ -206,8 +206,8 @@ conclusione: da una ciphertext word possiamo ricostruire lo stream_value, a patt
 
 symbol_inv non lo conosciamo. nel costruttore c'è:
 
-self.symbol_perm = symbol_permutation_from_model(...)
-self.symbol_inv = inverse_permutation(...)
+self.symbol_perm = symbol_permutation_from_model(&#46;&#46;&#46;)
+self.symbol_inv = inverse_permutation(&#46;&#46;&#46;)
 
 una permutazione segreta symbol → internal symbol. ma il plaintext lo scegliamo noi: se imponiamo symbol = 0 su un byte, l'unico valore ignoto diventa symbol_inv[0], che ha 16 possibilità. brute-forzabile.
 
@@ -216,7 +216,7 @@ il secondo segreto è la rotazione. dopo aver creato le 16 word:
 rotation = block_rotation(values, block_number)
 ranked = [words[(rank + rotation) & 15] for rank in range(16)]
 
-quindi il ciphertext non mantiene l'ordine dei 16 byte. ma q_label = q_perm[q] e q lo scegliamo noi: mandando q = 0,1,2,...,15 i 16 q_label nel ciphertext sono semplicemente una permutazione di q_perm[0..15], e la stessa permutazione vale in ogni blocco.
+quindi il ciphertext non mantiene l'ordine dei 16 byte. ma q_label = q_perm[q] e q lo scegliamo noi: mandando q = 0,1,2,&#46;&#46;&#46;,15 i 16 q_label nel ciphertext sono semplicemente una permutazione di q_perm[0..15], e la stessa permutazione vale in ogni blocco.
 
 detta R0 la rotazione del blocco 0, nel blocco b si ha rotation_b = R0 + delta_b mod 16. confrontando l'array dei q_label del blocco b con quello del blocco 0 si recupera delta_b senza conoscere né q_perm né R0. tutte le rotazioni relative, gratis. resta solo R0, altre 16 possibilità.
 
@@ -233,7 +233,7 @@ self.prng = SpectrumGenerator(self.nodes, self.coefficients)
 
 make_spectral_model crea SPECTRUM_SIZE = 56 nodi. lo stream di una lane è:
 
-result = [sum(row) % FIELD ...]
+result = [sum(row) % FIELD &#46;&#46;&#46;]
 
 e dopo ogni blocco row[j] *= node[j]. quindi per una lane:
 
@@ -241,9 +241,9 @@ S[n] = Σ c_j * node_j^n
 
 cioè una sequenza lineare ricorrente di ordine 56 su GF(4093), con λ_j = node_j.
 
-una sequenza di quella forma soddisfa una ricorrenza lineare il cui polinomio caratteristico è Π(x - λ_j), di grado 56. esistono quindi coefficienti C1...C56 tali che:
+una sequenza di quella forma soddisfa una ricorrenza lineare il cui polinomio caratteristico è Π(x - λ_j), di grado 56. esistono quindi coefficienti C1&#46;&#46;&#46;C56 tali che:
 
-S_n + C1*S_(n-1) + C2*S_(n-2) + ... + C56*S_(n-56) = 0   (mod 4093)
+S_n + C1*S_(n-1) + C2*S_(n-2) + &#46;&#46;&#46; + C56*S_(n-56) = 0   (mod 4093)
 
 e questa è la vulnerabilità vera: lo "stream crittografico" non è imprevedibile se hai abbastanza campioni consecutivi.
 
@@ -257,11 +257,11 @@ Questo è il punto che ha richiesto la correzione dei primi solver, ed è la par
 
 per i primi 56 blocchi vogliamo che tutte e 16 le lane abbiano symbol = 0:
 
-plaintext = bytes((q << 4) | q for q in range(16))
+plaintext = bytes((q << 4) &#124; q for q in range(16))
 
 perché symbol = low - q = q - q = 0. così tutti i symbol_inv[symbol] collassano su symbol_inv[0], l'unico valore da brute-forzare.
 
-nei restanti 40 blocchi si fa una cosa più furba: le lane 1..15 restano su symbol 0, quindi continuano a produrre campioni puliti dello stream fino al blocco 95, mentre la sola lane 0 cicla sui simboli 1,2,3,...,15,1,2,3,... e viene usata come sonda per recuperare symbol_inv[1] ... symbol_inv[15].
+nei restanti 40 blocchi si fa una cosa più furba: le lane 1..15 restano su symbol 0, quindi continuano a produrre campioni puliti dello stream fino al blocco 95, mentre la sola lane 0 cicla sui simboli 1,2,3,&#46;&#46;&#46;,15,1,2,3,&#46;&#46;&#46; e viene usata come sonda per recuperare symbol_inv[1] &#46;&#46;&#46; symbol_inv[15].
 
 nel codice è una riga:
 
@@ -277,18 +277,18 @@ Per ogni coppia candidata (R0, sinv0) si ricostruisce lo stream, ad esempio dell
 
 nel solver finale ho evitato Berlekamp-Massey e sono andato di algebra lineare diretta. per n = 56..95 ogni campione dà un'equazione:
 
-[C1,C2,...,C56] · [S_(n-1),...,S_(n-56)] = -S_n
+[C1,C2,&#46;&#46;&#46;,C56] · [S_(n-1),&#46;&#46;&#46;,S_(n-56)] = -S_n
 
 tutto in GF(4093). sono 40 equazioni per lane, e con 15 lane pulite fanno 15 x 40 = 600 equazioni per soli 56 coefficienti. sistema fortemente sovradeterminato, molto più solido che sperare in una singola sequenza.
 
-ottenuto il polinomio x^56 + C1*x^55 + ... + C56, i nodi sono le sue radici. FIELD = 4093 è primo, quindi basta provare x = 1..4092 e cercare P(x) = 0. i nodi sono esattamente 56, e lo spettro è ricostruito.
+ottenuto il polinomio x^56 + C1*x^55 + &#46;&#46;&#46; + C56, i nodi sono le sue radici. FIELD = 4093 è primo, quindi basta provare x = 1..4092 e cercare P(x) = 0. i nodi sono esattamente 56, e lo spettro è ricostruito.
 
 conoscendo i nodi, i coefficienti di ogni lane escono da un sistema di Vandermonde:
 
-S_0  = c0 + c1 + ... + c55
-S_1  = c0*λ0 + c1*λ1 + ...
-...
-S_55 = ...
+S_0  = c0 + c1 + &#46;&#46;&#46; + c55
+S_1  = c0*λ0 + c1*λ1 + &#46;&#46;&#46;
+&#46;&#46;&#46;
+S_55 = &#46;&#46;&#46;
 
 risolto modulo 4093 per ciascuna delle 16 lane. a questo punto coefficients[lane][node] è completamente ricostruito.
 
@@ -298,7 +298,7 @@ risolto modulo 4093 per ciascuna delle 16 lane. a questo punto coefficients[lane
 
 Con gli stream dei blocchi 0..95 ormai prevedibili, le due permutazioni cadono.
 
-per symbol_inv: sulla lane 0 sappiamo quale simbolo abbiamo mandato in ogni blocco dal 56 in poi. per ogni x ∈ {0..15} calcoliamo quale stream deriverebbe da quella word e lo confrontiamo con lo stream predetto. il match è univoco, e si ottengono symbol_inv[1] ... symbol_inv[15]. invertendo si ha symbol_perm.
+per symbol_inv: sulla lane 0 sappiamo quale simbolo abbiamo mandato in ogni blocco dal 56 in poi. per ogni x ∈ {0..15} calcoliamo quale stream deriverebbe da quella word e lo confrontiamo con lo stream predetto. il match è univoco, e si ottengono symbol_inv[1] &#46;&#46;&#46; symbol_inv[15]. invertendo si ha symbol_perm.
 
 per q_perm: dal primo blocco sappiamo q = 0..15 e osserviamo i q_label, ma l'ordine è ruotato di R0. noto R0:
 
@@ -348,7 +348,7 @@ rotation = (sum(stream) + 3*stream[0] + block_number) & 15
 
 e si inverte inner_word usando q_inv, symbol_perm e lo stream. ogni byte si ricostruisce come:
 
-byte = (q << 4) | ((symbol + q) & 15)
+byte = (q << 4) &#124; ((symbol + q) & 15)
 
 e si rimette nella posizione originale con plaintext_index = (rank + rotation) & 15.
 
@@ -369,18 +369,18 @@ MR=(7,11,3,13,5,15,9,1,14,6,12,4,10,2,8,0)
 
 def r4(v,a):
     a&=3; v&=15
-    return v if not a else ((v<<a)|(v>>(4-a)))&15
+    return v if not a else ((v<<a)&#124;(v>>(4-a)))&15
 
 def r8(v,a):
     a&=7; v&=255
-    return v if not a else ((v<<a)|(v>>(8-a)))&255
+    return v if not a else ((v<<a)&#124;(v>>(8-a)))&255
 
 def r16(v,a):
     a&=15; v&=65535
-    return v if not a else ((v<<a)|(v>>(16-a)))&65535
+    return v if not a else ((v<<a)&#124;(v>>(16-a)))&65535
 
 def ff(v,k,r):
-    x=(SBOX[v>>4]<<4)|SBOX[v&15]
+    x=(SBOX[v>>4]<<4)&#124;SBOX[v&15]
     x=(x+k+19*r)&255
     return r8(x,r+1)^((v*0x3d)&255)
 
@@ -389,7 +389,7 @@ def winv(w,r):
     for rnd in range(3,-1,-1):
         k=(0x53+r*0x29+rnd*0x47)&255
         l,h=h^ff(l,k,rnd),l
-    return (l<<8)|h
+    return (l<<8)&#124;h
 
 def undiff(w):
     f=[0]*16
@@ -416,7 +416,7 @@ def candidate(w,q,sinv):
     mask=(rf-rc)&15
     bc=(sinv-rc)&15
     hi=ch^SBOX[(rc^r4(bc,1)^q^low)&15]
-    v=(hi<<8)|(mask<<4)|low
+    v=(hi<<8)&#124;(mask<<4)&#124;low
     if v>=P:return None
     return v
 
@@ -536,13 +536,13 @@ def zero_seq(blocks,ds,R0,lane,s0):
 def main():
     c=Client()
     blocks=[]
-    print("[+] collecting 96 queries...")
+    print("[+] collecting 96 queries&#46;&#46;&#46;")
     for b in range(96):
         sym=0 if b<56 else 1+((b-56)%15)
         pt=[]
         for q in range(16):
             s=sym if q==0 else 0
-            pt.append((q<<4)|((q+s)&15))
+            pt.append((q<<4)&#124;((q+s)&15))
         ct=c.query(bytes(pt))
         blocks.append(inner(ct))
         if (b+1)%16==0:
@@ -658,7 +658,7 @@ def main():
 
     sinv=[None]*16
     sinv[0]=s0
-    print("[+] recovering symbol permutation...")
+    print("[+] recovering symbol permutation&#46;&#46;&#46;")
     for sym in range(1,16):
         vals=set()
         for b in range(56,96):
@@ -683,7 +683,7 @@ def main():
         sperm[x]=sym
     print("[+] symbol_inv =",sinv)
 
-    print("[+] requesting encrypted flag...")
+    print("[+] requesting encrypted flag&#46;&#46;&#46;")
     fc=c.getflag()
     if len(fc)==0 or len(fc)%32:
         raise RuntimeError(
@@ -741,7 +741,7 @@ def main():
             sym=sperm[(rc+bc)&15]
             out[(rank+R)&15]=(
                 (q<<4)
-                |((sym+q)&15)
+                &#124;((sym+q)&15)
             )
         plain.extend(out)
 
@@ -775,14 +775,14 @@ Tre problemi durante il solve, e nessuno dei tre era di crypto.
 
 tar -xzf *sudocrypt*.tar.gz
 
-ma nella directory c'erano due file, sudocrypt_...tar.gz e sudocrypt_... (1).tar.gz. il glob produceva due argomenti e tar interpretava male il secondo. la soluzione è passare esplicitamente il nome:
+ma nella directory c'erano due file, sudocrypt_&#46;&#46;&#46;tar.gz e sudocrypt_&#46;&#46;&#46; (1).tar.gz. il glob produceva due argomenti e tar interpretava male il secondo. la soluzione è passare esplicitamente il nome:
 
 tar -xzf 'sudocrypt_08ec969ff2e58b97 (1).tar.gz'
 
 **buffering TCP.** il server manda il prompt > insieme ad altri dati nella stessa recv(). un client che cerca sempre il prompt e butta via i byte successivi perde la sincronizzazione. risolto mantenendo un buffer:
 
 self.b += chunk
-...
+&#46;&#46;&#46;
 out = self.b[:i]
 self.b = self.b[i:]
 
@@ -797,10 +797,10 @@ self.b = self.b[i:]
 96 chosen plaintexts
    |
    v
-+----------------+
-|   encryption   |
-|     oracle     |
-+----------------+
++&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;+
+&#124;   encryption   &#124;
+&#124;     oracle     &#124;
++&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;+
    |
    v
 ciphertext blocks
@@ -814,7 +814,7 @@ public_wrapper_inv()
    v
 inner words
    |
-   +------------+------------+
+   +&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;+&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;+
    |                         |
    v                         v
 q-labels              row/col/check
@@ -822,7 +822,7 @@ q-labels              row/col/check
    v                         v
 rotation deltas       stream candidates
    |                         |
-   +------------+------------+
+   +&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;+&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;+
                 |
                 v
         recover R0 / sinv0
@@ -842,12 +842,12 @@ rotation deltas       stream candidates
                 v
       spectral coefficients
                 |
-      +---------+---------+
+      +&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;-+&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;-+
       |                   |
       v                   v
  q permutation    symbol permutation
       |                   |
-      +---------+---------+
+      +&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;-+&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;-+
                 |
                 v
             full model

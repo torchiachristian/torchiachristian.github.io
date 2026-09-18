@@ -160,7 +160,7 @@ The loaded assembly registers 5 additional opcodes:
 Two outcome messages preloaded into VM memory:
 
   0x12000  ">>> Yay, exacly! How pretty!"
-  0x12100  ">>> No no no... it's something different!"
+  0x12100  ">>> No no no&#46;&#46;&#46; it's something different!"
 
 ---
 
@@ -290,11 +290,11 @@ def u32(x): return x & MASK
 
 def rol(x, n):
     n &= 31
-    return u32((x << n) | (x >> ((32-n) & 31)))
+    return u32((x << n) &#124; (x >> ((32-n) & 31)))
 
 def ror(x, n):
     n &= 31
-    return u32((x >> n) | (x << ((32-n) & 31)))
+    return u32((x >> n) &#124; (x << ((32-n) & 31)))
 
 def sar(x, n):
     sx = x if x < 0x80000000 else x - 0x100000000
@@ -387,7 +387,7 @@ The VM bytecode was re-executed under emulation using the recovered string as in
 
 A wrong input instead reaches the failure branch:
 
-  >>> No no no... it's something different!
+  >>> No no no&#46;&#46;&#46; it's something different!
 
 This confirms the entire chain: bundle parsing, resource decryption, opcode extension, unpacking of the native DLL, invocation of the native exports, inversion of the validator's 16 blocks.
 
@@ -407,7 +407,7 @@ Why didn't I notice earlier? Because that VM is loaded from a "resource", a file
 
 That's why the debugger never found the right spot: I was looking for a direct comparison in x86 code, but the real comparison happens inside this little fake computer, which runs instructions of its own, different from x86. an ordinary debugger doesn't "see" that logic the same way, because the loop the debugger intercepts is only the VM's generic dispatch, identical for every bytecode instruction, not the specific validation logic.
 
-There was also a second trap: the native DLL I had tried to disassemble was compressed, like a zip. The function names found (th3_fl4g_i5_h1dden...) looked like a readable clue, but they were fake, a decoy placed deliberately by the challenge, because at runtime the program renames them based on the hash of the computer name.
+There was also a second trap: the native DLL I had tried to disassemble was compressed, like a zip. The function names found (th3_fl4g_i5_h1dden&#46;&#46;&#46;) looked like a readable clue, but they were fake, a decoy placed deliberately by the challenge, because at runtime the program renames them based on the hash of the computer name.
 
 ---
 
@@ -492,14 +492,14 @@ REAL CAUSE (known only after the solution, Phase 7): these RVAs (0x1440-0x1c90) 
 Testing through `printf` with various wrappers (flag{}, CTF{}, cimple{}, sasc{}, etc.), no test against the real program at this point, only candidate construction.
 
 First direct execution attempt:
-  echo "..." | wine ...exe
+  echo "&#46;&#46;&#46;" &#124; wine &#46;&#46;&#46;exe
   -> "You must install .NET to run this application" (dotnet missing in the Wine prefix)
 
 Installed dotnet-runtime-8.0 natively on Linux via apt (useless for Wine, it's needed in the Wine prefix, not on the host system), then solved correctly with winetricks dotnet8.
 
 With Wine + dotnet8 working: the program runs, shows ASCII art and a prompt, but the string "th3_fl4g_i5_h1dden_1n_th3_d4rk" (and all the variants with wrappers) always produces:
 
-  >>> No no no... it's something different!
+  >>> No no no&#46;&#46;&#46; it's something different!
 
 REAL CAUSE (Phase 7): the export names are a structural DECOY. At runtime CimpleNative computes a hash of the machine name and rewrites the export table with different, host-dependent names. the static names read from the file on disk are never used as such by the validator.
 
@@ -511,13 +511,13 @@ Attempt 2 — full gdb generate-core-file: the core file reached over 17 GB (it 
 
 Attempt 3 — targeted dump through a Python script (direct reading of /proc/pid/mem on anonymous rw-p regions, excluding files >200MB): completed successfully (101MB of dump), but no "flag{"/"kaspersky{"/etc. pattern found via grep on strings.
 
-REAL CAUSE (Phase 8): the validator never builds the flag in plain text in memory, it works exclusively on transformed 32-bit numeric representations, compared against 16 precomputed constants. By construction, there is no moment at which the string "kaspersky{...}" is present in memory unless the user has already typed it correctly.
+REAL CAUSE (Phase 8): the validator never builds the flag in plain text in memory, it works exclusively on transformed 32-bit numeric representations, compared against 16 precomputed constants. By construction, there is no moment at which the string "kaspersky{&#46;&#46;&#46;}" is present in memory unless the user has already typed it correctly.
 
 ### VirtualProtect breakpoint attempt
 
 gdb with a breakpoint on the VirtualProtect function (the API used by the loader to make memory written at runtime executable): a single hit intercepted, with newprot=0 (PAGE_NOACCESS), unrelated to the moment of interest for decompressing the native code. The real relevant mprotect (towards PAGE_EXECUTE) was never isolated with this approach.
 
-Analysis via strace -e trace=mprotect: confirmed a call mprotect(0x100051000, 69632, PROT_READ|PROT_EXEC), the offset 69632 = 0x11000 coincides exactly with the input buffer offset already known from the IL analysis. This correctly confirmed the buffer's runtime virtual address (0x100000000 + 0x11000 = 0x100011000), but it refers to the VM's linear memory, not to the stub's decompressed native code, which sits in another region (RVA 0x1000-0x9000 in CimpleNative's image) never specifically isolated with targeted mprotect tracing.
+Analysis via strace -e trace=mprotect: confirmed a call mprotect(0x100051000, 69632, PROT_READ&#124;PROT_EXEC), the offset 69632 = 0x11000 coincides exactly with the input buffer offset already known from the IL analysis. This correctly confirmed the buffer's runtime virtual address (0x100000000 + 0x11000 = 0x100011000), but it refers to the VM's linear memory, not to the stub's decompressed native code, which sits in another region (RVA 0x1000-0x9000 in CimpleNative's image) never specifically isolated with targeted mprotect tracing.
 
 ### Hardware watchpoint on 0x100011000
 
