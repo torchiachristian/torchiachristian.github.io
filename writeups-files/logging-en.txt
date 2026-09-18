@@ -1,19 +1,4 @@
----
-layout: writeup
-lang: en
-permalink: /en/writeups/logging/
-title: "Logging"
-ref: logging
-date: 2026-05-01
-bare: true
-platform: HTB
-os: Windows
-difficulty: Medium
-tags: [win, AD, kerberos, nmap, privesc]
-txt: /writeups-files/logging-en.txt
----
-
-# Writeup — Logging (HackTheBox)
+Writeup — Logging (HackTheBox)
 
 OS: Windows Server 2019 (Active Directory)
 Difficulty: Medium

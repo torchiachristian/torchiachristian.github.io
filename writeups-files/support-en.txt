@@ -1,19 +1,4 @@
----
-layout: writeup
-lang: en
-permalink: /en/writeups/support/
-title: "Support"
-ref: support
-date: 2026-06-01
-bare: true
-platform: HTB
-os: Windows
-difficulty: Easy
-tags: [win, AD, ldap, rbcd, kerberos, privesc]
-txt: /writeups-files/support-en.txt
----
-
-# Writeup — Support (HackTheBox)
+Writeup — Support (HackTheBox)
 
 OS: Windows Server 2022 (Active Directory)
 Difficulty: Easy

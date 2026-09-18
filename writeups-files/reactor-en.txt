@@ -1,19 +1,4 @@
----
-layout: writeup
-lang: en
-permalink: /en/writeups/reactor/
-title: "Reactor"
-ref: reactor
-date: 2026-05-01
-bare: true
-platform: HTB
-os: Linux
-difficulty: Easy
-tags: [lin, rce, nmap, privesc, CVE-2025-55182]
-txt: /writeups-files/reactor-en.txt
----
-
-# Writeup — Reactor (HackTheBox)
+Writeup — Reactor (HackTheBox)
 
 OS: Linux (Ubuntu 24.04)
 Difficulty: Easy
