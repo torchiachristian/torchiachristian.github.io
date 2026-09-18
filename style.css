@@ -310,11 +310,11 @@ body { max-width: 720px; line-height: 1.7; }
 
 html {
     background-color: #ffffff;
-    background-image: radial-gradient(ellipse 58% 54% at 50% 42%,
+    background-image: radial-gradient(ellipse 75% 70% at 50% 45%,
                       rgba(255,255,255,0) 0%,
-                      rgba(0,0,0,0.06) 40%,
-                      rgba(0,0,0,0.20) 68%,
-                      rgba(0,0,0,0.46) 100%);
+                      rgba(255,255,255,0) 70%,
+                      rgba(0,0,0,0.09) 90%,
+                      rgba(0,0,0,0.26) 100%);
     background-attachment: fixed;
     background-repeat: no-repeat;
     min-height: 100%;
@@ -392,9 +392,9 @@ details.series .writeup-entry:last-of-type { border-bottom: none; }
 
 @media (max-width: 600px) {
     html {
-        background-image: radial-gradient(ellipse 80% 75% at 50% 42%,
+        background-image: radial-gradient(ellipse 92% 88% at 50% 45%,
                           rgba(255,255,255,0) 0%,
-                          rgba(0,0,0,0.06) 50%,
-                          rgba(0,0,0,0.30) 100%);
+                          rgba(255,255,255,0) 75%,
+                          rgba(0,0,0,0.16) 100%);
     }
 }
