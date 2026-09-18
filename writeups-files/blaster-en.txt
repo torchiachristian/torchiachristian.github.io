@@ -1,21 +1,4 @@
----
-layout: writeup
-lang: en
-permalink: /en/writeups/blaster/
-title: "Blaster"
-ref: blaster
-date: 2026-08-01
-bare: true
-platform: THM
-os: Windows Server 2016 (IIS 10.0 + WordPress)
-difficulty: Easy
-series: thm-windows
-tags: [win, iis, wordpress, fuzzing, CVE-2019-1388, rdp]
-txt: /writeups-files/blaster-en.txt
-summary: "WordPress hidden under /retro, credentials in the comments of a post, escalation to SYSTEM via CVE-2019-1388 on the UAC window of hhupd.exe."
----
-
-# Writeup — Blaster (TryHackMe)
+Writeup — Blaster (TryHackMe)
 
 OS: Windows Server 2016 (RetroWeb, IIS 10.0 + WordPress)
 Difficulty: Easy

@@ -1,21 +1,4 @@
----
-layout: writeup
-lang: en
-permalink: /en/writeups/investigating-windows-2/
-title: "Investigating Windows 2.0"
-ref: investigating-windows-2
-date: 2026-09-01
-bare: true
-platform: THM
-os: Windows Server 2016 Datacenter
-difficulty: Medium
-series: thm-windows
-tags: [win, dfir, wmi, loki, yara, procmon, sysinternals]
-txt: /writeups-files/investigating-windows-2-en.txt
-summary: "Thirty questions on a compromised machine. The attacker left a WMI backdoor that calls home every hour and that closes Process Explorer as soon as you try to open it."
----
-
-# Writeup — Investigating Windows 2.0 (TryHackMe)
+Writeup — Investigating Windows 2.0 (TryHackMe)
 
 OS: Windows Server 2016 Datacenter (build 14393)
 Difficulty: Medium

@@ -1,21 +1,4 @@
----
-layout: writeup
-lang: en
-permalink: /en/writeups/cimple/
-title: "Cimple"
-ref: cimple
-date: 2026-08-01
-bare: true
-platform: KCTF
-platform_color: "#0f7a3d"
-os: Windows (.NET 8 single-file)
-series: kaspersky-ctf-2026
-tags: [reverse, .NET, vm-bytecode, packer, unicorn, python]
-txt: /writeups-files/cimple-en.txt
-summary: "83 points. A .NET executable that hides another three inside it, one of them a fake processor with invented instructions. The password is written nowhere: it is derived backwards from the 16 checks the program runs."
----
-
-# Writeup — Cimple (Kaspersky CTF 2026)
+Writeup — Cimple (Kaspersky CTF 2026)
 
 Category: Reverse Engineering
 Architecture: .NET 8 single-file bundle + custom VM bytecode + compressed PE32+ x86-64 native DLL (custom packer)

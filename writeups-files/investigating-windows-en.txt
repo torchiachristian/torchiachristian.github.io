@@ -1,21 +1,4 @@
----
-layout: writeup
-lang: en
-permalink: /en/writeups/investigating-windows/
-title: "Investigating Windows"
-ref: investigating-windows
-date: 2026-09-01
-bare: true
-platform: THM
-os: Windows Server 2016 Datacenter
-difficulty: Easy
-series: thm-windows
-tags: [win, dfir, registry, event-log, wevtutil, persistence]
-txt: /writeups-files/investigating-windows-en.txt
-summary: "Machine already compromised, sixteen investigative questions. A .jsp webshell, renamed mimikatz, three persistence mechanisms and a poisoned hosts file."
----
-
-# Writeup — Investigating Windows (TryHackMe)
+Writeup — Investigating Windows (TryHackMe)
 
 OS: Windows Server 2016 Datacenter (build 14393)
 Difficulty: Easy

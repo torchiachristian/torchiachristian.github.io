@@ -1,21 +1,4 @@
----
-layout: writeup
-lang: en
-permalink: /en/writeups/chroot-silver/
-title: "chroot-silver"
-ref: chroot-silver
-date: 2026-08-01
-bare: true
-platform: KCTF
-platform_color: "#0f7a3d"
-os: Linux (BusyBox / musl)
-series: kaspersky-ctf-2026
-tags: [misc, chroot, busybox, escape, proc, linux]
-txt: /writeups-files/chroot-silver-en.txt
-summary: "77 points. The shell starts inside a chroot with only two directories and no commands. But /bin/sh is BusyBox, which contains mount and everything else: you mount /proc and from there you get out of the cage."
----
-
-# Writeup — chroot-silver (Kaspersky CTF 2026)
+Writeup — chroot-silver (Kaspersky CTF 2026)
 
 Category: misc
 Value: 77 points (221 solves)

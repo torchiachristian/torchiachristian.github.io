@@ -1,21 +1,4 @@
----
-layout: writeup
-lang: en
-permalink: /en/writeups/attacktive-directory/
-title: "Attacktive Directory"
-ref: attacktive-directory
-date: 2026-09-01
-bare: true
-platform: THM
-os: Windows Server 2019 (Domain Controller)
-difficulty: Medium
-series: thm-windows
-tags: [win, AD, kerberos, as-rep, dcsync, pass-the-hash, impacket]
-txt: /writeups-files/attacktive-directory-en.txt
-summary: "Initial access comes from Kerberos itself: kerbrute, AS-REP roast on svc-admin, base64 credentials in a backup share, DCSync and pass-the-hash."
----
-
-# Writeup — Attacktive Directory (TryHackMe)
+Writeup — Attacktive Directory (TryHackMe)
 
 OS: Windows Server 2019 (Domain Controller, build 17763)
 Difficulty: Medium

@@ -1,20 +1,4 @@
----
-layout: writeup
-lang: en
-permalink: /en/writeups/sudokrypt/
-title: "Sudokrypt"
-ref: sudokrypt
-date: 2026-08-01
-bare: true
-platform: KCTF
-platform_color: "#0f7a3d"
-series: kaspersky-ctf-2026
-tags: [crypto, chosen-plaintext, GF(4093), linear-recurrence, vandermonde, python]
-txt: /writeups-files/sudokrypt-en.txt
-summary: "53 points. The service encrypts anything you send it, and gives you the flag only encrypted. With 96 attempts you reconstruct the key generator, which isn't as random as it looks, and you decrypt it."
----
-
-# Writeup — Sudokrypt (Kaspersky CTF 2026)
+Writeup — Sudokrypt (Kaspersky CTF 2026)
 
 Category: crypto
 Value: 53 points

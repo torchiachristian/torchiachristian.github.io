@@ -1,21 +1,4 @@
----
-layout: writeup
-lang: en
-permalink: /en/writeups/vulnnet-active/
-title: "VulnNet: Active"
-ref: vulnnet-active
-date: 2026-09-01
-bare: true
-platform: THM
-os: Windows Server 2019 (Domain Controller)
-difficulty: Medium
-series: thm-windows
-tags: [win, AD, redis, responder, hashcat, GodPotato, privesc]
-txt: /writeups-files/vulnnet-active-en.txt
-summary: "Domain Controller with the AD ports filtered and a Redis 2.8 exposed. Arbitrary file read via Lua, NetNTLMv2 hash captured with Responder, SYSTEM with GodPotato."
----
-
-# Writeup — VulnNet: Active (TryHackMe)
+Writeup — VulnNet: Active (TryHackMe)
 
 OS: Windows Server 2019 (Domain Controller, domain vulnnet.local)
 Difficulty: Medium

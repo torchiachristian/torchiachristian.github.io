@@ -1,21 +1,4 @@
----
-layout: writeup
-lang: en
-permalink: /en/writeups/blueprint/
-title: "Blueprint"
-ref: blueprint
-date: 2026-09-01
-bare: true
-platform: THM
-os: Windows 7 Home Basic SP1 (XAMPP stack)
-difficulty: Easy
-series: thm-windows
-tags: [win, xampp, oscommerce, metasploit, secretsdump, hashcat]
-txt: /writeups-files/blueprint-en.txt
-summary: "osCommerce with the install directory never removed. No PHP payload holds up on the target: the route is php/exec plus an msfvenom executable served over HTTP."
----
-
-# Writeup — Blueprint (TryHackMe)
+Writeup — Blueprint (TryHackMe)
 
 OS: Windows 7 Home Basic SP1 (XAMPP stack)
 Difficulty: Easy

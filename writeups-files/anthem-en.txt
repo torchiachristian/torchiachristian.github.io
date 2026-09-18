@@ -1,21 +1,4 @@
----
-layout: writeup
-lang: en
-permalink: /en/writeups/anthem/
-title: "Anthem"
-ref: anthem
-date: 2026-09-01
-bare: true
-platform: THM
-os: Windows Server 2019 (Umbraco 7.15.4 + Articulate)
-difficulty: Easy
-series: thm-windows
-tags: [win, umbraco, osint, rdp, acl, privesc]
-txt: /writeups-files/anthem-en.txt
-summary: "No exploit, only observation required. Password in robots.txt, username derived from a document, privilege escalation by rewriting the ACLs of a folder."
----
-
-# Writeup — Anthem (TryHackMe)
+Writeup — Anthem (TryHackMe)
 
 OS: Windows Server 2019 (build 17763, Umbraco 7.15.4 + Articulate)
 Difficulty: Easy

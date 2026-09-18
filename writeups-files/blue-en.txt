@@ -1,21 +1,4 @@
----
-layout: writeup
-lang: en
-permalink: /en/writeups/blue/
-title: "Blue"
-ref: blue
-date: 2026-08-01
-bare: true
-platform: THM
-os: Windows Server 2012 R2 Datacenter
-difficulty: Easy
-series: thm-windows
-tags: [win, smb, MS17-010, metasploit, privesc]
-txt: /writeups-files/blue-en.txt
-summary: "EternalBlue over SMB. The reverse_tcp payload gets blocked outbound, bind_tcp opens a shell straight in as SYSTEM."
----
-
-# Writeup — Blue (TryHackMe)
+Writeup — Blue (TryHackMe)
 
 OS: Windows Server 2012 R2 Datacenter
 Difficulty: Easy

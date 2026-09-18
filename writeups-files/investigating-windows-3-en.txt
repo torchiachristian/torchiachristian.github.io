@@ -1,21 +1,4 @@
----
-layout: writeup
-lang: en
-permalink: /en/writeups/investigating-windows-3/
-title: "Investigating Windows 3.x"
-ref: investigating-windows-3
-date: 2026-09-01
-bare: true
-platform: THM
-os: Windows Server 2019
-difficulty: Medium
-series: thm-windows
-tags: [win, dfir, sysmon, empire, printdemon, injection, procmon]
-txt: /writeups-files/investigating-windows-3-en.txt
-summary: "Two different attacks on the same machine: a backdoor hooked into the Windows print service, and the Empire framework hidden inside explorer.exe, the desktop process."
----
-
-# Writeup — Investigating Windows 3.x (TryHackMe)
+Writeup — Investigating Windows 3.x (TryHackMe)
 
 OS: Windows Server 2019 (build 17763)
 Difficulty: Medium
