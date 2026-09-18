@@ -22,7 +22,7 @@ lang: en
     <h2 class="series-title">Windows Offensive - TryHackMe <span class="series-count">{{ n_thm }} writeup</span></h2>
     <p class="series-desc">Dieci room TryHackMe completate tra agosto e settembre. Trattate vulnerabilità note su host, su Active Directory, con un plus sull'analisi post compromissione (le tracce che un attaccante lascia dietro di sè)</p>
     <details class="series">
-      <summary>mostra i writeup</summary>
+      <summary>writeups</summary>
       {% for w in items %}{% if w.lang == "it" and w.kind != "lab" and w.series == "thm-windows" %}{% include writeup-entry.html w=w lang="it" %}{% endif %}{% endfor %}
       <p class="series-foot"><a href="https://tryhackme.com/p/torchiachristian" target="_blank">Profilo TryHackMe &rarr;</a></p>
     </details>
@@ -32,7 +32,7 @@ lang: en
     <h2 class="series-title">Kaspersky{CTF} 2026 <span class="series-count">{{ n_kctf }} writeup</span></h2>
     <p class="series-desc">Lega regionale Europea con competizione a squadre: partecipato con team MOLO dell'ITS ICT Piemonte. Chiusa al 13esimo posto con 553 punti e 9 challenge completate dalla squadra. Qui ci sono i writeup di quelle risolte da me.</p>
     <details class="series">
-      <summary>mostra i writeup</summary>
+      <summary>writeups</summary>
       <div class="writeup-image">
         <img src="/assets/writeups/kctf-scoreboard.png" alt="Scoreboard Kaspersky CTF 2026, lega Europa">
         <div class="img-caption">Posizionamento finale nella lega regionale Europa</div>
@@ -45,7 +45,7 @@ lang: en
     <h2 class="series-title">HackTheBox <span class="series-count">{{ n_htb }} writeup</span></h2>
     <p class="series-desc">Macchine singole, catena di attacco completa: enumerazione, exploitation, privilege escalation.</p>
     <details class="series">
-      <summary>mostra i writeup</summary>
+      <summary>writeups</summary>
       {% for w in items %}{% if w.lang == "it" and w.kind != "lab" and w.series == nil %}{% include writeup-entry.html w=w lang="it" %}{% endif %}{% endfor %}
     </details>
   </section>
@@ -58,7 +58,7 @@ lang: en
     <h2 class="series-title">Windows Offensive - TryHackMe <span class="series-count">{{ n_thm }} writeups</span></h2>
     <p class="series-desc">Ten TryHackMe rooms completed between August and September. They cover known vulnerabilities on hosts and on Active Directory, plus post-compromise analysis (the traces an attacker leaves behind).</p>
     <details class="series">
-      <summary>show writeups</summary>
+      <summary>writeups</summary>
       {% for w in items %}{% if w.lang == "en" and w.kind != "lab" and w.series == "thm-windows" %}{% include writeup-entry.html w=w lang="en" %}{% endif %}{% endfor %}
       <p class="series-foot"><a href="https://tryhackme.com/p/torchiachristian" target="_blank">TryHackMe profile &rarr;</a></p>
     </details>
@@ -68,7 +68,7 @@ lang: en
     <h2 class="series-title">Kaspersky{CTF} 2026 <span class="series-count">{{ n_kctf }} writeups</span></h2>
     <p class="series-desc">Europe regional league, team competition: I took part with team MOLO from ITS ICT Piemonte. Finished 13th with 553 points and 9 challenges completed by the team. These are the writeups of the ones I solved myself.</p>
     <details class="series">
-      <summary>show writeups</summary>
+      <summary>writeups</summary>
       <div class="writeup-image">
         <img src="/assets/writeups/kctf-scoreboard.png" alt="Kaspersky CTF 2026 scoreboard, Europe league">
         <div class="img-caption">Final standing in the Europe regional league</div>
@@ -81,7 +81,7 @@ lang: en
     <h2 class="series-title">HackTheBox <span class="series-count">{{ n_htb }} writeups</span></h2>
     <p class="series-desc">Single machines, full attack chain: enumeration, exploitation, privilege escalation.</p>
     <details class="series">
-      <summary>show writeups</summary>
+      <summary>writeups</summary>
       {% for w in items %}{% if w.lang == "en" and w.kind != "lab" and w.series == nil %}{% include writeup-entry.html w=w lang="en" %}{% endif %}{% endfor %}
     </details>
   </section>

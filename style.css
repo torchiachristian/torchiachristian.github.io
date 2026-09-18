@@ -348,11 +348,19 @@ details.series > summary {
     user-select: none;
 }
 details.series > summary::-webkit-details-marker { display: none; }
-details.series > summary::before {
-    content: "+ ";
-    color: #777;
+details.series > summary::after {
+    content: "";
+    display: inline-block;
+    width: 0; height: 0;
+    margin-left: 8px;
+    vertical-align: 2px;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid #666;
+    transition: transform 0.15s ease;
 }
-details.series[open] > summary::before { content: "\2212 "; }
+details.series[open] > summary::after { transform: rotate(180deg); }
+details.series > summary:hover::after { border-top-color: #111; }
 details.series > summary:hover { background: #ececec; border-color: #999; }
 details.series > summary:focus { outline: none; }
 details.series[open] > summary { margin-bottom: 6px; }
@@ -368,16 +376,24 @@ details.series .writeup-entry:last-of-type { border-bottom: none; }
 /* ==================== vignettatura ==================== */
 /* su html e non su body: body ha zoom, che rompe position fixed */
 
-html { position: relative; }
 html::before {
     content: "";
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
     pointer-events: none;
     z-index: 9999;
-    box-shadow: inset 0 0 200px 60px rgba(0,0,0,0.075);
+    background: radial-gradient(ellipse 85% 80% at 50% 50%,
+                rgba(0,0,0,0) 0%,
+                rgba(0,0,0,0) 52%,
+                rgba(0,0,0,0.10) 82%,
+                rgba(0,0,0,0.22) 100%);
 }
 
 @media (max-width: 600px) {
-    html::before { box-shadow: inset 0 0 100px 28px rgba(0,0,0,0.06); }
+    html::before {
+        background: radial-gradient(ellipse 95% 90% at 50% 50%,
+                    rgba(0,0,0,0) 0%,
+                    rgba(0,0,0,0) 60%,
+                    rgba(0,0,0,0.14) 100%);
+    }
 }
