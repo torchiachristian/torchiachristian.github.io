@@ -4,7 +4,7 @@ lang: it
 permalink: /writeups/reactor/
 title: "Reactor"
 ref: reactor
-date: 2026-05-30
+date: 2026-05-01
 bare: true
 platform: HTB
 os: Linux

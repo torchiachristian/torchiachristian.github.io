@@ -12,40 +12,52 @@ lang: en
 
 <div data-lang="it">
 
-  <h2>Percorso Windows offensive — TryHackMe</h2>
-  <p>Dieci room costruite come percorso mio, non come lista ufficiale, completate tra agosto e settembre 2026. Si parte dalle vulnerabilità note su host standalone, si passa all'Active Directory e si chiude con l'analisi post compromissione, cioè con le tracce che un attaccante lascia dietro di sé.</p>
-  {% for w in items %}{% if w.lang == "it" and w.kind != "lab" and w.series == "thm-windows" %}{% include writeup-entry.html w=w lang="it" %}{% endif %}{% endfor %}
+  <details class="series">
+    <summary>Windows Offensive - TryHackMe</summary>
+    <p class="series-intro">Dieci room TryHackMe completate tra agosto e settembre. Trattate vulnerabilità note su host, su Active Directory, con un plus sull'analisi post compromissione (le tracce che un attaccante lascia dietro di sè)</p>
+    {% for w in items %}{% if w.lang == "it" and w.kind != "lab" and w.series == "thm-windows" %}{% include writeup-entry.html w=w lang="it" %}{% endif %}{% endfor %}
+  </details>
 
-  <h2>Kaspersky{CTF} 2026</h2>
-  <p>Competizione a squadre, lega regionale Europa, team Molo dell'ITS ICT Piemonte. Chiusa al tredicesimo posto su 56 team con 553 punti e nove challenge risolte dalla squadra. Qui ci sono quelle che ho risolto io.</p>
-  <div class="writeup-image">
-    <img src="/assets/writeups/kctf-scoreboard.png" alt="Scoreboard Kaspersky CTF 2026, lega Europa">
-    <div class="img-caption">Posizionamento finale nella lega regionale Europa</div>
-  </div>
-  {% for w in items %}{% if w.lang == "it" and w.kind != "lab" and w.series == "kaspersky-ctf-2026" %}{% include writeup-entry.html w=w lang="it" %}{% endif %}{% endfor %}
+  <details class="series">
+    <summary>Kaspersky{CTF} 2026</summary>
+    <p class="series-intro">Lega regionale Europea con competizione a squadre: partecipato con team MOLO dell'ITS ICT Piemonte. Chiusa al 13esimo posto con 553 punti e 9 challenge completate dalla squadra. Qui ci sono i writeup di quelle risolte da me.</p>
+    <div class="writeup-image">
+      <img src="/assets/writeups/kctf-scoreboard.png" alt="Scoreboard Kaspersky CTF 2026, lega Europa">
+      <div class="img-caption">Posizionamento finale nella lega regionale Europa</div>
+    </div>
+    {% for w in items %}{% if w.lang == "it" and w.kind != "lab" and w.series == "kaspersky-ctf-2026" %}{% include writeup-entry.html w=w lang="it" %}{% endif %}{% endfor %}
+  </details>
 
-  <h2>HackTheBox</h2>
-  <p>Macchine singole, catena di attacco completa: enumerazione, exploitation, privilege escalation.</p>
-  {% for w in items %}{% if w.lang == "it" and w.kind != "lab" and w.series == nil %}{% include writeup-entry.html w=w lang="it" %}{% endif %}{% endfor %}
+  <details class="series">
+    <summary>HackTheBox</summary>
+    <p class="series-intro">Macchine singole, catena di attacco completa: enumerazione, exploitation, privilege escalation.</p>
+    {% for w in items %}{% if w.lang == "it" and w.kind != "lab" and w.series == nil %}{% include writeup-entry.html w=w lang="it" %}{% endif %}{% endfor %}
+  </details>
 
 </div>
 
 <div data-lang="en">
 
-  <h2>Windows offensive path — TryHackMe</h2>
-  <p>Ten rooms built as my own path, not as an official track, completed between August and September 2026. It starts from known vulnerabilities on standalone hosts, moves through Active Directory, and ends with post-compromise analysis, meaning the traces an attacker leaves behind.</p>
-  {% for w in items %}{% if w.lang == "en" and w.kind != "lab" and w.series == "thm-windows" %}{% include writeup-entry.html w=w lang="en" %}{% endif %}{% endfor %}
+  <details class="series">
+    <summary>Windows Offensive - TryHackMe</summary>
+    <p class="series-intro">Ten TryHackMe rooms completed between August and September. They cover known vulnerabilities on hosts and on Active Directory, plus post-compromise analysis (the traces an attacker leaves behind).</p>
+    {% for w in items %}{% if w.lang == "en" and w.kind != "lab" and w.series == "thm-windows" %}{% include writeup-entry.html w=w lang="en" %}{% endif %}{% endfor %}
+  </details>
 
-  <h2>Kaspersky{CTF} 2026</h2>
-  <p>Team competition, Europe regional league, team Molo from ITS ICT Piemonte. Finished thirteenth out of 56 teams with 553 points and nine challenges solved by the team. These are the ones I solved myself.</p>
-  <div class="writeup-image">
-    <img src="/assets/writeups/kctf-scoreboard.png" alt="Kaspersky CTF 2026 scoreboard, Europe league">
-    <div class="img-caption">Final standing in the Europe regional league</div>
-  </div>
-  {% for w in items %}{% if w.lang == "en" and w.kind != "lab" and w.series == "kaspersky-ctf-2026" %}{% include writeup-entry.html w=w lang="en" %}{% endif %}{% endfor %}
+  <details class="series">
+    <summary>Kaspersky{CTF} 2026</summary>
+    <p class="series-intro">Europe regional league, team competition: I took part with team MOLO from ITS ICT Piemonte. Finished 13th with 553 points and 9 challenges completed by the team. These are the writeups of the ones I solved myself.</p>
+    <div class="writeup-image">
+      <img src="/assets/writeups/kctf-scoreboard.png" alt="Kaspersky CTF 2026 scoreboard, Europe league">
+      <div class="img-caption">Final standing in the Europe regional league</div>
+    </div>
+    {% for w in items %}{% if w.lang == "en" and w.kind != "lab" and w.series == "kaspersky-ctf-2026" %}{% include writeup-entry.html w=w lang="en" %}{% endif %}{% endfor %}
+  </details>
 
-  <h2>HackTheBox</h2>
-  <p>Single machines, full attack chain: enumeration, exploitation, privilege escalation.</p>
-  {% for w in items %}{% if w.lang == "en" and w.kind != "lab" and w.series == nil %}{% include writeup-entry.html w=w lang="en" %}{% endif %}{% endfor %}
+  <details class="series">
+    <summary>HackTheBox</summary>
+    <p class="series-intro">Single machines, full attack chain: enumeration, exploitation, privilege escalation.</p>
+    {% for w in items %}{% if w.lang == "en" and w.kind != "lab" and w.series == nil %}{% include writeup-entry.html w=w lang="en" %}{% endif %}{% endfor %}
+  </details>
 
 </div>

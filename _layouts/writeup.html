@@ -5,7 +5,7 @@ layout: base
 {% unless page.bare %}
 <h1>{{ page.title }}{% if page.platform %} <span class="platform-badge"{% if page.platform_color %} style="background:{{ page.platform_color }};"{% endif %}>{{ page.platform }}</span>{% endif %}</h1>
 <div class="writeup-meta">
-  {{ page.date | date: "%Y-%m-%d" }}{% if page.os %} &nbsp;|&nbsp; OS: {{ page.os }}{% endif %}{% if page.difficulty %} &nbsp;|&nbsp; Difficulty: <span class="difficulty-{{ page.difficulty | downcase }}">{{ page.difficulty }}</span>{% endif %}
+  {{ page.date | date: "%Y-%m" }}{% if page.os %} &nbsp;|&nbsp; OS: {{ page.os }}{% endif %}{% if page.difficulty %} &nbsp;|&nbsp; Difficulty: <span class="difficulty-{{ page.difficulty | downcase }}">{{ page.difficulty }}</span>{% endif %}
 </div>
 {% endunless %}
 

@@ -4,7 +4,7 @@ lang: it
 permalink: /writeups/investigating-windows-3/
 title: "Investigating Windows 3.x"
 ref: investigating-windows-3
-date: 2026-09-14
+date: 2026-09-01
 bare: true
 platform: THM
 os: Windows Server 2019
@@ -12,7 +12,7 @@ difficulty: Medium
 series: thm-windows
 tags: [win, dfir, sysmon, empire, printdemon, injection, procmon]
 txt: /writeups-files/investigating-windows-3.txt
-summary: "Due catene distinte sulla stessa macchina: persistenza sul Print Spooler in stile PrintDemon e uno stager Empire iniettato dentro explorer.exe."
+summary: "Due attacchi diversi sulla stessa macchina: una backdoor agganciata al servizio di stampa di Windows, e il framework Empire nascosto dentro explorer.exe, il processo del desktop."
 ---
 
 # Writeup — Investigating Windows 3.x (TryHackMe)

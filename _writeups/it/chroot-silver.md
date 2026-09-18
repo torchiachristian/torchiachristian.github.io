@@ -4,7 +4,7 @@ lang: it
 permalink: /writeups/chroot-silver/
 title: "chroot-silver"
 ref: chroot-silver
-date: 2026-08-30
+date: 2026-08-01
 bare: true
 platform: KCTF
 platform_color: "#0f7a3d"
@@ -12,7 +12,7 @@ os: Linux (BusyBox / musl)
 series: kaspersky-ctf-2026
 tags: [misc, chroot, busybox, escape, proc, linux]
 txt: /writeups-files/chroot-silver.txt
-summary: "77 punti, 221 solve. Escape da un chroot minimale: /bin/sh è BusyBox, si raggiungono le applet con exec -a, si monta /proc e si legge la flag da /proc/1/root."
+summary: "77 punti. La shell parte dentro un chroot con due sole directory e nessun comando. Ma /bin/sh è BusyBox, che contiene mount e tutto il resto: si monta /proc e da lì si esce dalla gabbia."
 ---
 
 # Writeup — chroot-silver (Kaspersky CTF 2026)

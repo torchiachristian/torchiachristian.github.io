@@ -4,7 +4,7 @@ lang: it
 permalink: /writeups/blueprint/
 title: "Blueprint"
 ref: blueprint
-date: 2026-09-09
+date: 2026-09-01
 bare: true
 platform: THM
 os: Windows 7 Home Basic SP1 (stack XAMPP)

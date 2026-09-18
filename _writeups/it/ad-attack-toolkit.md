@@ -4,7 +4,7 @@ lang: it
 permalink: /writeups/ad-attack-toolkit/
 title: "AD Attack Toolkit — tool testing"
 ref: ad-attack-toolkit
-date: 2026-06-28
+date: 2026-06-01
 kind: lab
 bare: true
 platform: LAB

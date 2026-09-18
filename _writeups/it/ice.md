@@ -4,7 +4,7 @@ lang: it
 permalink: /writeups/ice/
 title: "Ice"
 ref: ice
-date: 2026-08-25
+date: 2026-08-01
 bare: true
 platform: THM
 os: Windows 7 Professional
@@ -12,7 +12,7 @@ difficulty: Easy
 series: thm-windows
 tags: [win, icecast, rce, meterpreter, uac-bypass, mimikatz]
 txt: /writeups-files/ice.txt
-summary: "RCE su Icecast, bypass UAC per arrivare a SYSTEM, dump di SAM e LSA secrets con kiwi. Ore perse su un servizio che si chiudeva da solo."
+summary: "RCE su Icecast, bypass UAC per arrivare a SYSTEM, dump di SAM e LSA secrets con kiwi."
 ---
 
 # Writeup — Ice (TryHackMe)

@@ -303,3 +303,31 @@ body { zoom: 0.9; }
 
 body { max-width: 720px; line-height: 1.7; }
 @media (max-width: 600px) { body { zoom: 1; } }
+
+/* ==================== sezioni a tendina ==================== */
+
+details.series {
+    margin: 22px 0;
+    border-bottom: 1px solid #cccccc;
+    padding-bottom: 10px;
+}
+details.series > summary {
+    font-size: 1.3em;
+    font-weight: bold;
+    cursor: pointer;
+    padding: 8px 0;
+    list-style: none;
+}
+details.series > summary::-webkit-details-marker { display: none; }
+details.series > summary::before {
+    content: "+ ";
+    color: #666;
+    font-weight: normal;
+}
+details.series[open] > summary::before { content: "\2212 "; }
+details.series > summary:hover { color: #444; }
+.series-intro {
+    font-size: 0.9em;
+    color: #333;
+    margin: 10px 0 20px 0;
+}

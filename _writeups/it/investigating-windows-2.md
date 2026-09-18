@@ -4,7 +4,7 @@ lang: it
 permalink: /writeups/investigating-windows-2/
 title: "Investigating Windows 2.0"
 ref: investigating-windows-2
-date: 2026-09-13
+date: 2026-09-01
 bare: true
 platform: THM
 os: Windows Server 2016 Datacenter
@@ -12,7 +12,7 @@ difficulty: Medium
 series: thm-windows
 tags: [win, dfir, wmi, loki, yara, procmon, sysinternals]
 txt: /writeups-files/investigating-windows-2.txt
-summary: "Persistenza WMI con beaconing orario e un consumer che uccide Process Explorer nell'istante in cui lo apri. Nell'ultima domanda la regola Yara la scrivi tu."
+summary: "Trenta domande su una macchina compromessa. L'attaccante ha lasciato una backdoor WMI che chiama casa ogni ora e che chiude Process Explorer appena provi ad aprirlo."
 ---
 
 # Writeup — Investigating Windows 2.0 (TryHackMe)

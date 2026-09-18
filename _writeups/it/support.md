@@ -4,7 +4,7 @@ lang: it
 permalink: /writeups/support/
 title: "Support"
 ref: support
-date: 2026-06-18
+date: 2026-06-01
 bare: true
 platform: HTB
 os: Windows

@@ -4,14 +4,14 @@ lang: it
 permalink: /writeups/sudokrypt/
 title: "Sudokrypt"
 ref: sudokrypt
-date: 2026-08-30
+date: 2026-08-01
 bare: true
 platform: KCTF
 platform_color: "#0f7a3d"
 series: kaspersky-ctf-2026
 tags: [crypto, chosen-plaintext, GF(4093), linear-recurrence, vandermonde, python]
 txt: /writeups-files/sudokrypt.txt
-summary: "53 punti. Oracolo chosen-plaintext a 96 query. Lo stream è una sequenza lineare ricorrente di ordine 56 su GF(4093), quindi ricostruibile con algebra lineare."
+summary: "53 punti. Il servizio cifra qualunque cosa gli mandi, e la flag te la dà solo cifrata. Con 96 tentativi si ricostruisce il generatore di chiavi, che non è casuale come sembra, e si decifra."
 ---
 
 # Writeup — Sudokrypt (Kaspersky CTF 2026)

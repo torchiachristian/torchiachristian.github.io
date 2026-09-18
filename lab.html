@@ -16,7 +16,7 @@ lang: en
       <h3><a href="{{ w.url }}">{{ w.title }}</a>{% if w.platform %} <span class="platform-badge"{% if w.platform_color %} style="background:{{ w.platform_color }};"{% endif %}>{{ w.platform }}</span>{% endif %}</h3>
     </div>
     <div class="writeup-meta">
-      {{ w.date | date: "%Y-%m-%d" }}{% if w.os %} &nbsp;|&nbsp; OS: {{ w.os }}{% endif %}{% if w.difficulty %} &nbsp;|&nbsp; Difficulty: <span class="difficulty-{{ w.difficulty | downcase }}">{{ w.difficulty }}</span>{% endif %}
+      {{ w.date | date: "%Y-%m" }}{% if w.os %} &nbsp;|&nbsp; OS: {{ w.os }}{% endif %}{% if w.difficulty %} &nbsp;|&nbsp; Difficulty: <span class="difficulty-{{ w.difficulty | downcase }}">{{ w.difficulty }}</span>{% endif %}
     </div>
     {% if w.tags %}<div class="writeup-tags">{% for t in w.tags %}<span>{{ t }}</span>{% endfor %}</div>{% endif %}
     {% if w.summary %}<p class="writeup-summary">{{ w.summary }}</p>{% endif %}
@@ -34,7 +34,7 @@ lang: en
       <h3><a href="{{ w.url }}">{{ w.title }}</a>{% if w.platform %} <span class="platform-badge"{% if w.platform_color %} style="background:{{ w.platform_color }};"{% endif %}>{{ w.platform }}</span>{% endif %}</h3>
     </div>
     <div class="writeup-meta">
-      {{ w.date | date: "%Y-%m-%d" }}{% if w.os %} &nbsp;|&nbsp; OS: {{ w.os }}{% endif %}{% if w.difficulty %} &nbsp;|&nbsp; Difficulty: <span class="difficulty-{{ w.difficulty | downcase }}">{{ w.difficulty }}</span>{% endif %}
+      {{ w.date | date: "%Y-%m" }}{% if w.os %} &nbsp;|&nbsp; OS: {{ w.os }}{% endif %}{% if w.difficulty %} &nbsp;|&nbsp; Difficulty: <span class="difficulty-{{ w.difficulty | downcase }}">{{ w.difficulty }}</span>{% endif %}
     </div>
     {% if w.tags %}<div class="writeup-tags">{% for t in w.tags %}<span>{{ t }}</span>{% endfor %}</div>{% endif %}
     {% if w.summary %}<p class="writeup-summary">{{ w.summary }}</p>{% endif %}

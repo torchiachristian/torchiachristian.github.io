@@ -4,7 +4,7 @@ lang: it
 permalink: /writeups/vulnnet-active/
 title: "VulnNet: Active"
 ref: vulnnet-active
-date: 2026-09-11
+date: 2026-09-01
 bare: true
 platform: THM
 os: Windows Server 2019 (Domain Controller)

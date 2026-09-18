@@ -4,7 +4,7 @@ lang: it
 permalink: /writeups/investigating-windows/
 title: "Investigating Windows"
 ref: investigating-windows
-date: 2026-09-13
+date: 2026-09-01
 bare: true
 platform: THM
 os: Windows Server 2016 Datacenter

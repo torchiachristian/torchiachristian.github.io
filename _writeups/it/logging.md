@@ -4,7 +4,7 @@ lang: it
 permalink: /writeups/logging/
 title: "Logging"
 ref: logging
-date: 2026-05-26
+date: 2026-05-01
 bare: true
 platform: HTB
 os: Windows

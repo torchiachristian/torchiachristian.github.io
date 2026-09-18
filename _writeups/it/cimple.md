@@ -4,7 +4,7 @@ lang: it
 permalink: /writeups/cimple/
 title: "Cimple"
 ref: cimple
-date: 2026-08-30
+date: 2026-08-01
 bare: true
 platform: KCTF
 platform_color: "#0f7a3d"
@@ -12,7 +12,7 @@ os: Windows (.NET 8 single-file)
 series: kaspersky-ctf-2026
 tags: [reverse, .NET, vm-bytecode, packer, unicorn, python]
 txt: /writeups-files/cimple.txt
-summary: "83 punti. Bundle .NET 8 con dentro una VM bytecode custom e una DLL nativa compressa. La flag non esiste in chiaro: è la preimmagine di 16 target a 32 bit."
+summary: "83 punti. Un eseguibile .NET che dentro ne nasconde altri tre, fra cui un finto processore con istruzioni inventate. La password non è scritta da nessuna parte: si ricava al contrario dai 16 controlli che il programma fa."
 ---
 
 # Writeup — Cimple (Kaspersky CTF 2026)

@@ -4,7 +4,7 @@ lang: it
 permalink: /writeups/blaster/
 title: "Blaster"
 ref: blaster
-date: 2026-08-27
+date: 2026-08-01
 bare: true
 platform: THM
 os: Windows Server 2016 (IIS 10.0 + WordPress)

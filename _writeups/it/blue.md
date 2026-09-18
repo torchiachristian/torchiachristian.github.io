@@ -4,7 +4,7 @@ lang: it
 permalink: /writeups/blue/
 title: "Blue"
 ref: blue
-date: 2026-08-20
+date: 2026-08-01
 bare: true
 platform: THM
 os: Windows Server 2012 R2 Datacenter
