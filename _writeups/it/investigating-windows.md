@@ -1,0 +1,432 @@
+---
+layout: writeup
+lang: it
+permalink: /writeups/investigating-windows/
+title: "Investigating Windows"
+ref: investigating-windows
+date: 2026-09-13
+bare: true
+platform: THM
+os: Windows Server 2016 Datacenter
+difficulty: Easy
+series: thm-windows
+tags: [win, dfir, registry, event-log, wevtutil, persistence]
+txt: /writeups-files/investigating-windows.txt
+summary: "Macchina già compromessa, sedici domande investigative. Webshell .jsp, mimikatz rinominato, tre meccanismi di persistenza e hosts file avvelenato."
+---
+
+# Writeup — Investigating Windows (TryHackMe)
+
+OS: Windows Server 2016 Datacenter (build 14393)
+Difficoltà: Easy
+Data: 13 settembre 2026
+
+---
+
+## Sommario
+
+macchina Windows già compromessa, nessuna exploitation da fare: si entra in RDP con credenziali fornite dalla room (Administrator / letmein123!) e si lavora solo di analisi del sistema per rispondere a 16 domande investigative. non ci sono flag da raccogliere, ogni risposta è un parametro forense diverso (versione OS, account, orari di logon, task pianificate, chiavi di run, file droppati, regole firewall, log eventi, hosts file), e il senso della room è proprio quello: costringerti a toccare sedici posti diversi dove un attaccante lascia tracce, invece di darti una singola catena da seguire.
+
+la macchina è un EC2 Windows Server 2016 con hostname EC2AMAZ-I8UH076. l'attaccante è entrato via webshell .jsp caricata nella root IIS, ha ottenuto privilegi elevati, ha aggiunto Guest e Jenny agli amministratori locali, ha dumpato le credenziali con mimikatz rinominato, ha piazzato tre meccanismi di persistenza indipendenti fra loro (chiave Run, scheduled task e script vbs), ha aperto due porte sul firewall e infine ha avvelenato il file hosts per neutralizzare antivirus e update e dirottare google.com sul proprio C2
+
+---
+
+## strumenti e metodologie aggiuntive
+
+durante la sessione è stato utilizzato un llm: per recupero dettagli su CVE, interpretazione di output grezzi, suggerimenti su vettori inesplorati in caso di blocco, spiegazione dettagliata di concetti tecnici e correzione di sintassi in comandi lunghi. l'esecuzione e le scelte operative erano mie. il writeup è stato scritto da me e successivamente ripulito con lo stesso strumento.
+
+per la sintassi dei comandi di enumerazione locale e per il significato degli event ID ho fatto riferimento alla documentazione Microsoft:
+https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/net-localgroup
+https://learn.microsoft.com/en-us/windows/security/threat-protection/auditing/event-4672
+
+---
+
+## Premessa
+
+Kali virtualizzata su Linux Mint, VPN TryHackMe con sudo openvpn --config ~/thm.ovpn e verifica con ip a show tun0.
+
+primo intoppo prima ancora di iniziare: la connessione RDP dalla mia Kali non è mai andata.
+
+xfreerdp /v:10.112.158.69 /u:Administrator /p:'letmein123!' /cert:ignore /dynamic-resolution +clipboard
+[ERROR][com.freerdp.core] - [get_next_addrinfo]: ERRCONNECT_CONNECT_FAILED [0x00020006]
+[ERROR][com.freerdp.core.transport] - ConnectLayer 10.112.158.69:3389 [15000ms] failed
+
+tun0 era su e con IP assegnato (192.168.134.214/18), quindi la VPN non c'entrava. la macchina semplicemente non rispondeva sulla 3389 da fuori, e ho dovuto ripiegare sulla VM in-browser di TryHackMe per tutta la sessione. questo ha pesato molto più di quanto pensassi: niente copia incolla fra host e target,quindi ogni comando riscritto a mano e ogni output riletto a schermo o via screenshot. con query XPath lunghe è un problema serio, e su quella tastiera virtuale le parentesi graffe e l'asterisco non erano digitabili affatto, cosa che ha bloccato per un pezzo la parte sui log (dettaglio in Fase 8).
+
+l'ambiente è quello di un sistema già compromesso e lasciato sporco: sul desktop non c'era quasi nulla se non Wireshark installato e un documento di testo con un dump di hash NTLM in formato pwdump, e in Network compariva tsclient.
+
+Administrator:500:NO PASSWORD*********************:31D6CFE0D16AFA21B73C59D7E02A89C0:::
+Guest:501:NO PASSWORD*********************:NO PASSWORD*********************:::
+trinity:1002:NO PASSWORD*********************:A4A9436B46F7E948A2427335B6322C5C:::
+HomeGroupUser$:1006:NO PASSWORD*********************:E37B4DD2729A37EB5C581C8B9D70153C:::
+
+quel file da solo dice già che qualcuno ha dumpato la SAM, ma gli utenti elencati (trinity, HomeGroupUser$) non esistono su questa macchina: è output portato da un altro host, non generato qui. l'ho annotato e messo da parte, e infatti la conferma del tool usato è arrivata dopo, da C:\TMP
+
+---
+
+## Fase 1 — Inquadramento del sistema
+
+systeminfo
+
+Host Name:                 EC2AMAZ-I8UH076
+OS Name:                   Microsoft Windows Server 2016 Datacenter
+OS Version:                10.0.14393 N/A Build 14393
+OS Manufacturer:           Microsoft Corporation
+OS Configuration:          Standalone Server
+Original Install Date:     3/2/2019, 4:06:35 PM
+System Boot Time:          9/13/2026, 12:25:12 PM
+System Manufacturer:       Amazon EC2
+Domain:                    WORKGROUP
+Time Zone:                 (UTC) Coordinated Universal Time
+
+prima risposta presa: Windows Server 2016 Datacenter.
+
+due cose interessanti oltre alla risposta. la data di installazione è 3/2/2019 alle 16:06, cioè lo stesso giorno in cui poi si scoprirà essere avvenuto il compromesso: la macchina è stata preparata e bucata nello stesso pomeriggio, il che spiega perché quasi tutti gli artefatti abbiano timestamp ravvicinati.
+e il fuso è UTC, quindi tutti gli orari dei log sono confrontabili direttamente senza conversioni, cosa che semplifica la timeline.
+il sistema è standalone in WORKGROUP, niente dominio: tutta l'enumerazione utenti resta locale.
+
+---
+
+## Fase 2 — Account e privilegi
+
+net user
+
+Administrator    DefaultAccount    Guest
+Jenny            John              ssm-user
+
+sei account. Administrator, Guest e DefaultAccount sono built-in, ssm-user è l'account di AWS Systems Manager e su un EC2 è normale. restano John e Jenny come account creati.
+
+net user John
+
+User name                    John
+Password last set            3/2/2019 5:48:19 PM
+Last logon                   3/2/2019 5:48:32 PM
+Local Group Memberships      *Users
+Global Group memberships     *None
+
+net user Jenny
+
+User name                    Jenny
+Password last set            3/2/2019 4:52:25 PM
+Last logon                   Never
+Local Group Memberships      *Administrators       *Users
+Global Group memberships     *None
+
+qui vengono fuori tre risposte insieme e un indizio grosso.
+John ha fatto l'ultimo logon il 3/2/2019 alle 5:48:32 PM, ed è anche l'ultimo utente ad aver effettuato l'accesso al sistema in assoluto.
+Jenny invece non si è mai loggata, ma è in Administrators. un account che non ha mai fatto login e che sta nel gruppo amministratori non è un account usato da una persona: è un account creato o promosso da qualcun altro. la password è stata impostata alle 16:52, quindi dentro la finestra del compromesso.
+
+per elencare il gruppo il primo tentativo è fallito:
+
+net localgroup Administrators
+The specified local group does not exist.
+
+sembrava assurdo visto che net localgroup senza argomenti elencava regolarmente Administrators fra gli alias. il motivo è banale ma me lo segno perché ci ho perso qualche minuto: ero in una console PowerShell, non in cmd, e il parsing dell'argomento si comportava diversamente. il cmdlet nativo risolve senza discussioni:
+
+Get-LocalGroupMember -Group Administrators
+
+Administrator
+Guest
+Jenny
+ssm-user
+
+Comment: admin have complete and unrestricted access to the computer/domain
+
+Guest dentro Administrators è l'anomalia più pesante di tutta la fase. l'account Guest è disabilitato e privo di privilegi per design, promuoverlo ad amministratore non ha nessuna ragione legittima ed è una tecnica di persistenza classica proprio perché nessuno pensa a controllarlo.
+escludendo Administrator (esplicitamente escluso dalla domanda) e ssm-user (account di servizio AWS legittimo, presente dalla creazione dell'istanza), gli account con privilegi amministrativi aggiunti sono Guest e Jenny.
+
+---
+
+## Fase 3 — Task pianificate
+
+le task pianificate sono uno dei posti più comuni dove piazzare persistenza. schtasks è il comando nativo per interrogarle, e con /fo table /nh si ottiene una lista compatta. il problema è che una Windows Server ne ha centinaia di legittime, tutte sotto \Microsoft\Windows\, quindi ho filtrato via quelle:
+
+schtasks /query /fo table /nh | findstr /v Microsoft
+
+Folder: \
+Amazon Ec2 Launch - Instance Initializat  N/A                    Disabled
+Amazon Ec2 Launch - Userdata Execution    N/A                    Ready
+BADR                                      N/A                    Ready
+BadrClient                                N/A                    Ready
+check logged in                           9/13/2026 4:59:43 PM   Ready
+Clean file system                         9/13/2026 4:55:17 PM   Ready
+falshupdate22                             9/13/2026 12:45:04 PM  Ready
+npcapwatchdog                             N/A                    Ready
+update windows                            N/A                    Ready
+
+nella cartella root ci sono nove task e almeno cinque hanno nomi sospetti. le due Amazon Ec2 Launch sono legittime dell'AMI, npcapwatchdog è di Npcap ed è coerente col Wireshark installato.
+restano BADR, BadrClient, check logged in, Clean file system, falshupdate22, update windows. falshupdate22 è un typo evidente di flash update, un classico camuffamento, e update windows è invertito rispetto al vero nome Microsoft.
+
+la domanda ne chiede una sola, quindi ho controllato quella con nome più innocuo e con next run time attivo:
+
+schtasks /query /tn "Clean file system" /fo list /v
+
+HostName:                             EC2AMAZ-I8UH076
+TaskName:                             \Clean file system
+Next Run Time:                        9/13/2026 4:55:17 PM
+Status:                               Ready
+Logon Mode:                           Interactive only
+Last Run Time:                        9/13/2026 12:28:29 PM
+Author:                               EC2AMAZ-I8UH076\Administrator
+Task To Run:                          C:\TMP\nc.ps1 -l 1348
+Comment:                              A task to clean old files of the system
+Scheduled Task State:                 Enabled
+Run As User:                          Administrator
+Schedule Type:                        Daily
+Start Time:                           4:55:17 PM
+Start Date:                           3/2/2019
+Days:                                 Every 1 day(s)
+
+tre risposte in un colpo solo.
+il nome è quello che sembra pulizia di sistema, la descrizione pure ("A task to clean old files of the system"), ma il comando eseguito è C:\TMP\nc.ps1 -l 1348, cioè netcat in versione PowerShell messo in listening sulla porta 1348. gira ogni giorno, come Administrator, a partire dal 3/2/2019.
+un bind shell schedulata quotidianamente: se l'attaccante perde l'accesso, gli basta ricollegarsi sulla 1348 il giorno dopo.
+il percorso C:\TMP è la cosa che mi ha interessato di più, perché non è una cartella standard di Windows e da qui in poi è diventata il centro dell'indagine.
+
+le altre task sospette non le ho aperte una per una per questione di tempo, ma i nomi restano annotati come persistenza multipla: BADR e BadrClient si ricollegano allo start-badr.vbs trovato dopo nelle chiavi di run, quindi sono lo stesso impianto visto da due punti diversi.
+
+---
+
+## Fase 4 — Chiavi di run
+
+la domanda sull'IP contattato all'avvio indirizza direttamente alle autorun. la chiave macchina è quella:
+
+reg query "HKLM\Software\Microsoft\Windows\CurrentVersion\Run"
+
+UpdateSvc    REG_SZ    C:\TMP\p.exe -s \\10.34.2.3 'net user' > C:\TMP\o2.txt
+BadrClient   REG_SZ    wscript.exe "C:\badr\start-badr.vbs" //B //Nologo
+
+l'IP contattato all'avvio è 10.34.2.3
+
+la voce si chiama UpdateSvc per sembrare un servizio di aggiornamento ma esegue p.exe con la sintassi tipica di PsExec (-s per girare come SYSTEM, \\host come target), lancia net user sulla macchina remota e redirige l'output in C:\TMP\o2.txt. non è quindi una connessione verso un C2 esterno, è movimento laterale verso un host interno con raccolta di utenti: 10.34.2.3 è nella rete privata.
+questo è un punto che vale la pena non appiattire, perché più avanti c'è una domanda sul C2 esterno e la risposta è un IP completamente diverso. i due indirizzi hanno due funzioni distinte e confonderli è l'errore facile della room.
+
+la seconda voce è la controparte della task BadrClient vista prima: uno script vbs eseguito con wscript in modalità silenziosa (//B //Nologo, nessuna finestra, nessun banner). persistenza numero due.
+
+---
+
+## Fase 5 — Il toolkit in C:\TMP
+
+dir C:\TMP
+
+Mode     LastWriteTime        Length   Name
+-a----   3/2/2019 4:37 PM       9673   d.txt
+-a----   3/2/2019 4:37 PM       3389   mim-out.txt
+-a----   3/2/2019 4:37 PM     663552   mim.exe
+-a----   3/2/2019 4:45 PM     176148   moutput.tmp
+-a----   3/2/2019 4:37 PM      36864   nbtscan.exe
+-a----   3/2/2019 4:37 PM      37640   nc.ps1
+-a----   3/2/2019 4:37 PM     381816   p.exe
+-a----   3/2/2019 4:46 PM          0   scan1.tmp
+-a----   3/2/2019 4:46 PM          0   scan2.tmp
+-a----   3/2/2019 4:46 PM          0   scan3.tmp
+-a----   3/2/2019 4:45 PM       7022   schtasks-backdoor.ps1
+-a----   3/2/2019 4:45 PM   40464394   somethingwindows.dmp
+-a----   3/2/2019 4:46 PM      11950   sys.dmp
+-a----   3/2/2019 4:37 PM      19998   wMIBackdoor.ps1
+-a----   3/2/2019 4:37 PM     843776   xCmd.exe
+
+questa è la cartella di lavoro dell'attaccante e da sola ricostruisce mezzo attacco.
+
+mim.exe con accanto mim-out.txt è mimikatz rinominato: la risposta alla domanda sul tool usato per prendere le password è mimikatz. il nome accorciato serve a non farsi intercettare da controlli banali sul nome file, ma l'output affiancato non lascia dubbi ed è coerente col dump di hash trovato sul desktop in premessa.
+p.exe è PsExec, quello richiamato dalla chiave Run.
+nc.ps1 è il netcat PowerShell della scheduled task.
+nbtscan.exe e i tre scan*.tmp vuoti sono ricognizione di rete NetBIOS, i file a zero byte dicono che le scansioni sono state lanciate ma non hanno prodotto risultati.
+xCmd.exe è un altro tool di esecuzione remota, alternativa a PsExec.
+wMIBackdoor.ps1 e schtasks-backdoor.ps1 sono le altre due vie di persistenza, WMI event subscription e task pianificate.
+somethingwindows.dmp da 40 MB e sys.dmp sono dump di memoria, materiale da cui estrarre credenziali offline.
+d.txt l'ho aperto pensando contenesse configurazione o indirizzi, e invece è un listato ricorsivo del filesystem (partiva da C:\MSOCache con tutti i pacchetti Office e continuava per pagine). è ricognizione del disco, non contiene nulla di utile alle domande, e lo annoto proprio come esclusione: mi ha fatto perdere tempo perché il nome breve faceva pensare a un file di configurazione.
+
+tutti i timestamp stanno fra le 16:37 e le 16:46 del 3/2/2019, quindi la data del compromesso è 03/02/2019 e la finestra operativa è di una decina di minuti scarsi. questo è il riferimento temporale su cui ho poi cercato negli event log.
+
+---
+
+## Fase 6 — Webshell e vettore di ingresso
+
+la domanda parla di shell caricata via sito, quindi root IIS di default:
+
+dir C:\inetpub\wwwroot
+
+b.jsp
+shell.gif
+tests.jsp
+
+estensione: .jsp
+
+due file jsp in una wwwroot di IIS sono già anomali di per sé, e shell.gif accanto è il classico file caricato con estensione immagine per superare un filtro sull'upload e poi rinominato o interpretato altrimenti.
+il webserver in realtà non risultava attivo sulla macchina al momento dell'analisi, la room lo simula lasciando solo gli artefatti su disco. l'ho verificato perché ho provato a cercare riferimenti a URL dentro tests.jsp con findstr /i "http" e non è uscito niente: i file sono presenti ma svuotati di contenuto utile.
+questa è comunque la porta d'ingresso: upload non filtrato su applicazione Java esposta, poi esecuzione di comandi dalla shell.
+
+---
+
+## Fase 7 — Firewall e hosts file
+
+netsh advfirewall firewall show rule name=all | findstr /i "Rule Name LocalPort"
+
+l'output è lunghissimo perché elenca tutte le regole predefinite di Windows, ma fra Network Discovery e le regole delle app Microsoft ne spuntano due che non appartengono a nessun set standard:
+
+Rule Name:  Allow outside connections for development
+LocalPort:  1337
+Rule Name:  Service Firewall
+LocalPort:  8888
+
+entrambe aggiunte a mano. il nome della prima è quasi una firma, "allow outside connections for development" è la scusa che si scrive per giustificare un buco. la seconda si maschera da regola di servizio generica.
+la risposta all'ultima porta aperta è 1337. inizialmente avevo puntato su 8888 ragionando sull'ordine in cui comparivano nell'elenco, ma l'ordine di output di netsh non riflette l'ordine di creazione, e la room considera l'ultima nella catena delle inbound aggiunte quella sulla 1337. lo tengo come nota metodologica: per determinare davvero l'ordine cronologico di creazione delle regole servirebbe il registro o gli event log del firewall, netsh da solo non lo dice.
+
+poi il file hosts, che è dove si controlla un eventuale avvelenamento DNS locale:
+
+type C:\Windows\System32\drivers\etc\hosts
+
+127.0.0.1        localhost
+::1              localhost
+0.2.2.2          update.microsoft.com
+127.0.0.1        www.virustotal.com
+27.0.0.1         www.www.com
+27.0.0.1         dci.sophosupd.com
+0.2.2.2          update.microsoft.com
+127.0.0.1        www.virustotal.com
+27.0.0.1         www.www.com
+27.0.0.1         dci.sophosupd.com
+76.32.97.132     google.com
+76.32.97.132     www.google.com
+
+due risposte qui, e vanno separate bene perché la tentazione è di dare la stessa per entrambe.
+
+le voci verso 127.0.0.1, 0.2.2.2 e 27.0.0.1 sono sabotaggio difensivo, non redirezione: puntano a indirizzi locali o inesistenti per impedire alla macchina di raggiungere Windows Update, VirusTotal e i server di aggiornamento Sophos. servono a tenere il sistema cieco e non aggiornato, e le escludo dalla domanda sul sito targhettizzato proprio perché non dirottano da nessuna parte, bloccano e basta.
+l'unica voce che punta a un IP pubblico reale è google.com (e www.google.com) verso 76.32.97.132. quello è l'unico dirottamento vero, quindi il sito targhettizzato dal DNS poisoning è google.com e l'IP del server di command and control esterno è 76.32.97.132.
+
+prima di arrivarci avevo cercato il C2 nel posto sbagliato: dentro d.txt, dentro i jsp e perfino cercando un eventuale pcap sul disco (con Wireshark installato sembrava sensato). ls C:\Users -r -fi *.pcap* non ha restituito niente. il C2 era nel file più banale del sistema
+
+---
+
+## Fase 8 — Event log e la caccia al 4672
+
+l'ultima domanda chiede l'orario in cui Windows ha assegnato per la prima volta privilegi speciali a un nuovo logon durante il compromesso. l'event ID di riferimento è 4672 (Special privileges assigned to new logon), che viene generato quando un account riceve un token con privilegi sensibili tipo SeDebugPrivilege o SeTakeOwnershipPrivilege.
+
+questa singola domanda mi ha preso più tempo di tutte le altre quindici messe insieme, quindi la scrivo per intero perché il valore è nel percorso, non nella risposta.
+
+primo tentativo, il modo standard:
+
+Get-WinEvent -FilterHashtable @{LogName='Security';Id=4672} -MaxEvents 5
+
+No events found that match criteria.
+
+il problema qui non era la query ma la tastiera: sulla VM in-browser le parentesi graffe non erano digitabili, quindi la hashtable non è mai arrivata a destinazione integra. me ne sono accorto tardi.
+
+secondo tentativo con Get-EventLog:
+
+Get-EventLog Security -InstanceId 4672 -Newest 5
+Get-EventLog : No matches found
+
+terzo con XPath dentro Get-WinEvent:
+
+Get-WinEvent -LogName Security -FilterXPath "*[System[EventID=4672]]" -Oldest -MaxEvents 1
+No events found
+
+quarto con pipeline e filtro lato client:
+
+Get-WinEvent -LogName Security -Oldest | ? Id -eq 4672 | select -First 1 TimeCreated
+
+questo è rimasto appeso all'infinito: il Security log aveva 99.196 eventi e filtrare lato client significa scorrerli tutti. l'ho interrotto.
+
+quello che ha funzionato è wevtutil, che filtra a livello di log e non enumera niente:
+
+wevtutil qe Security /q:"*[System[(EventID=4672)]]" /c:1 /rd:false /f:text
+
+Event[0]:
+  Log Name: Security
+  Source: Microsoft-Windows-Security-Auditing
+  Date: 2026-09-13T13:16:01.601
+  Event ID: 4672
+  Task: Special Logon
+Special privileges assigned to new logon.
+Subject:
+  Security ID:    S-1-5-21-3685962493-259677494-3116396707-500
+  Account Name:   Administrator
+Privileges:       SeSecurityPrivilege
+                  SeBackupPrivilege
+                  SeRestorePrivilege
+                  SeTakeOwnershipPrivilege
+                  SeDebugPrivilege
+                  ...
+
+funziona, ma la data è 2026: sono i miei stessi accessi RDP di oggi. su quell'istanza il log era ruotato e i 4672 del 2019 erano stati sovrascritti dagli eventi generati durante le tre ore di sessione, in Event Viewer ne restavano cinque in tutto e tutti odierni.
+
+ho riavviato la lab machine per ripartire da uno snapshot fresco, e lì gli eventi storici c'erano:
+
+Date: 2019-02-13T08:14:30.347
+Event ID: 4672
+Account Name: SYSTEM
+
+ma il primo in assoluto è di febbraio e appartiene a SYSTEM, quindi non è quello del compromesso. ho ristretto alla giornata:
+
+wevtutil qe Security /q:"*[System[(EventID=4672) and TimeCreated[@SystemTime>='2019-03-02T00:00:00' and @SystemTime<='2019-03-03T00:00:00']]]" /c:1 /f:text
+
+Date: 2019-03-02T16:02:58.125
+Account Name: SYSTEM
+
+ancora SYSTEM. ho provato a escludere il SID S-1-5-18 e mi è uscito NETWORK SERVICE, poi filtrando su SubjectUserName='Administrator' sono arrivato a 16:09:34, che è già dentro la finestra giusta ma non è il primo.
+
+la risposta corretta è saltata fuori rilanciando la query base su una istanza appena avviata, senza aver ancora dato conferma alla finestra di dialogo iniziale che compare al primo login: in quelle condizioni wevtutil restituisce molti più 4672 storici rispetto a quelli visibili dalla GUI dopo (che ne mostrava solo cinque, tutti recenti). presumibilmente quel passaggio iniziale innesca attività che riempie il log e spinge fuori i record vecchi.
+
+Date: 2019-03-02T16:04:49
+
+risposta: 03/02/2019 4:04:49 PM.
+
+due lezioni concrete da qui. la prima è che su un log da centomila eventi la differenza fra filtrare lato server (wevtutil, XPath dentro la query) e lato client (pipeline con Where-Object) non è di stile, è la differenza fra un secondo e mai. la seconda è che su una macchina forense il tempo di uptime è esso stesso un fattore distruttivo: più la tieni accesa, più i log storici che devi analizzare vengono sovrascritti dalla tua stessa attività di analisi. su un caso reale la prima cosa sarebbe esportare il Security.evtx, non interrogarlo dal vivo.
+
+---
+
+## Catena completa
+
+timeline ricostruita dell'attacco, tutti gli orari in UTC del 2 marzo 2019.
+
+16:04:49  primo assegnamento di privilegi speciali a un nuovo logon (4672), l'attaccante ottiene un token con privilegi elevati dopo essere entrato tramite la webshell .jsp caricata in C:\inetpub\wwwroot
+16:37     drop del toolkit in C:\TMP: mim.exe (mimikatz), p.exe (PsExec), xCmd.exe, nc.ps1, nbtscan.exe, wMIBackdoor.ps1
+16:37     esecuzione di mimikatz, output in mim-out.txt, dump credenziali del sistema
+16:45     creazione dei dump di memoria somethingwindows.dmp e sys.dmp e di schtasks-backdoor.ps1
+16:46     ricognizione di rete con nbtscan, scan1/2/3.tmp restituiscono vuoti
+16:47     prime scheduled task malevole registrate
+16:52     password impostata per l'account Jenny, che viene aggiunta ad Administrators insieme a Guest senza aver mai fatto login
+16:55     task "Clean file system" schedulata giornaliera, esegue C:\TMP\nc.ps1 -l 1348, bind shell permanente
+--        chiave Run HKLM UpdateSvc: p.exe verso 10.34.2.3 per movimento laterale interno, output in o2.txt
+--        chiave Run HKLM BadrClient: wscript su C:\badr\start-badr.vbs in modalità silenziosa
+--        regole firewall inbound aggiunte a mano, 8888 e infine 1337
+--        hosts file avvelenato: update.microsoft.com, virustotal e sophosupd neutralizzati verso indirizzi locali, google.com dirottato sul C2 esterno 76.32.97.132
+17:48:32  ultimo logon di John, ultimo accesso utente registrato sul sistema
+
+in sintesi: ingresso via upload di webshell su IIS, escalation a privilegi amministrativi, furto credenziali con mimikatz, persistenza ridondante su tre fronti (run key, scheduled task, WMI/vbs), apertura di porte in ingresso e infine accecamento delle difese più dirottamento DNS locale verso il proprio server di comando.
+
+---
+
+## Risposte della room
+
+1.  Windows Server 2016 Datacenter
+2.  Administrator
+3.  03/02/2019 5:48:32 PM
+4.  10.34.2.3
+5.  Guest, Jenny
+6.  Clean file system
+7.  C:\TMP\nc.ps1
+8.  1348
+9.  Never
+10. 03/02/2019
+11. 03/02/2019 4:04:49 PM
+12. mimikatz
+13. 76.32.97.132
+14. .jsp
+15. 1337
+16. google.com
+
+---
+
+## Lezioni apprese
+
+la parte tecnica di questa room è tutta enumerazione nativa e nessun passaggio è difficile in sé. quello che rende sedici domande faticose è il contesto: senza copia incolla, con una tastiera che non digita metà dei caratteri speciali e con un log da centomila eventi, la differenza la fa scegliere lo strumento giusto al primo colpo invece di insistere su quello familiare. ho perso quaranta minuti su Get-WinEvent quando wevtutil rispondeva in un secondo.
+
+l'altra cosa che mi porto dietro è metodologica e vale al di là della room. su un sistema compromesso i due IP trovati (10.34.2.3 e 76.32.97.132) hanno ruoli opposti, e la sola presenza di un indirizzo non dice niente: uno è movimento laterale interno via PsExec, l'altro è il C2 esterno nel file hosts. stessa cosa per le voci del hosts file, dove sabotare gli aggiornamenti e dirottare un dominio sembrano la stessa azione ma rispondono a due domande diverse. distinguere serve più che trovare
+
+---
+
+## Tool utilizzati
+
+RDP (VM in-browser TryHackMe), systeminfo, net user, net localgroup, Get-LocalGroupMember, schtasks, reg query, dir, findstr, type, netsh advfirewall, Get-WinEvent, Get-EventLog, wevtutil, Event Viewer

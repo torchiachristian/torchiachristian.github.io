@@ -5,42 +5,47 @@ lang: en
 ---
 
 <h1>Writeups</h1>
-<p data-lang="it">Writeup di macchine HackTheBox. Ogni entry documenta la catena di attacco completa: enumerazione, exploitation, privilege escalation.</p>
-<p data-lang="en">HackTheBox machine writeups. Each entry documents the full attack chain: enumeration, exploitation, privilege escalation.</p>
+<p data-lang="it">Writeup di macchine e challenge risolte. Ogni entry documenta la catena completa, compresi i tentativi falliti e i vicoli ciechi. Il testo integrale di ognuno è scaricabile in .txt.</p>
+<p data-lang="en">Writeups of machines and challenges I solved. Each entry documents the full chain, failed attempts and dead ends included. The full text of each one is downloadable as .txt.</p>
+
+{% assign items = site.writeups | sort: "date" | reverse %}
 
 <div data-lang="it">
-{% assign items = site.writeups | sort: "date" | reverse %}
-{% for w in items %}{% if w.lang == "it" and w.kind != "lab" %}
-  <div class="writeup-entry">
-    <div class="writeup-header">
-      <h3><a href="{{ w.url }}">{{ w.title }}</a>{% if w.platform %} <span class="platform-badge"{% if w.platform_color %} style="background:{{ w.platform_color }};"{% endif %}>{{ w.platform }}</span>{% endif %}</h3>
-    </div>
-    <div class="writeup-meta">
-      {{ w.date | date: "%Y-%m-%d" }}{% if w.os %} &nbsp;|&nbsp; OS: {{ w.os }}{% endif %}{% if w.difficulty %} &nbsp;|&nbsp; Difficulty: <span class="difficulty-{{ w.difficulty | downcase }}">{{ w.difficulty }}</span>{% endif %}
-    </div>
-    {% if w.tags %}<div class="writeup-tags">{% for t in w.tags %}<span>{{ t }}</span>{% endfor %}</div>{% endif %}
-    {% if w.summary %}<p class="writeup-summary">{{ w.summary }}</p>{% endif %}
-    <div class="writeup-download">
-      <a href="{{ w.url }}">leggi &rarr;</a>{% if w.txt %} &nbsp;&middot;&nbsp; <a href="{{ w.txt }}" target="_blank">&darr; .txt</a>{% endif %}{% if w.repo %} &nbsp;&middot;&nbsp; <a href="{{ w.repo }}" target="_blank">GitHub repo</a>{% endif %}
-    </div>
+
+  <h2>Percorso Windows offensive — TryHackMe</h2>
+  <p>Dieci room costruite come percorso mio, non come lista ufficiale, completate tra agosto e settembre 2026. Si parte dalle vulnerabilità note su host standalone, si passa all'Active Directory e si chiude con l'analisi post compromissione, cioè con le tracce che un attaccante lascia dietro di sé.</p>
+  {% for w in items %}{% if w.lang == "it" and w.kind != "lab" and w.series == "thm-windows" %}{% include writeup-entry.html w=w lang="it" %}{% endif %}{% endfor %}
+
+  <h2>Kaspersky{CTF} 2026</h2>
+  <p>Competizione a squadre, lega regionale Europa, team Molo dell'ITS ICT Piemonte. Chiusa al tredicesimo posto su 56 team con 553 punti e nove challenge risolte dalla squadra. Qui ci sono quelle che ho risolto io.</p>
+  <div class="writeup-image">
+    <img src="/assets/writeups/kctf-scoreboard.png" alt="Scoreboard Kaspersky CTF 2026, lega Europa">
+    <div class="img-caption">Posizionamento finale nella lega regionale Europa</div>
   </div>
-{% endif %}{% endfor %}
+  {% for w in items %}{% if w.lang == "it" and w.kind != "lab" and w.series == "kaspersky-ctf-2026" %}{% include writeup-entry.html w=w lang="it" %}{% endif %}{% endfor %}
+
+  <h2>HackTheBox</h2>
+  <p>Macchine singole, catena di attacco completa: enumerazione, exploitation, privilege escalation.</p>
+  {% for w in items %}{% if w.lang == "it" and w.kind != "lab" and w.series == nil %}{% include writeup-entry.html w=w lang="it" %}{% endif %}{% endfor %}
+
 </div>
 
 <div data-lang="en">
-{% for w in items %}{% if w.lang == "en" and w.kind != "lab" %}
-  <div class="writeup-entry">
-    <div class="writeup-header">
-      <h3><a href="{{ w.url }}">{{ w.title }}</a>{% if w.platform %} <span class="platform-badge"{% if w.platform_color %} style="background:{{ w.platform_color }};"{% endif %}>{{ w.platform }}</span>{% endif %}</h3>
-    </div>
-    <div class="writeup-meta">
-      {{ w.date | date: "%Y-%m-%d" }}{% if w.os %} &nbsp;|&nbsp; OS: {{ w.os }}{% endif %}{% if w.difficulty %} &nbsp;|&nbsp; Difficulty: <span class="difficulty-{{ w.difficulty | downcase }}">{{ w.difficulty }}</span>{% endif %}
-    </div>
-    {% if w.tags %}<div class="writeup-tags">{% for t in w.tags %}<span>{{ t }}</span>{% endfor %}</div>{% endif %}
-    {% if w.summary %}<p class="writeup-summary">{{ w.summary }}</p>{% endif %}
-    <div class="writeup-download">
-      <a href="{{ w.url }}">read &rarr;</a>{% if w.txt %} &nbsp;&middot;&nbsp; <a href="{{ w.txt }}" target="_blank">&darr; .txt</a>{% endif %}{% if w.repo %} &nbsp;&middot;&nbsp; <a href="{{ w.repo }}" target="_blank">GitHub repo</a>{% endif %}
-    </div>
+
+  <h2>Windows offensive path — TryHackMe</h2>
+  <p>Ten rooms built as my own path, not as an official track, completed between August and September 2026. It starts from known vulnerabilities on standalone hosts, moves through Active Directory, and ends with post-compromise analysis, meaning the traces an attacker leaves behind.</p>
+  {% for w in items %}{% if w.lang == "en" and w.kind != "lab" and w.series == "thm-windows" %}{% include writeup-entry.html w=w lang="en" %}{% endif %}{% endfor %}
+
+  <h2>Kaspersky{CTF} 2026</h2>
+  <p>Team competition, Europe regional league, team Molo from ITS ICT Piemonte. Finished thirteenth out of 56 teams with 553 points and nine challenges solved by the team. These are the ones I solved myself.</p>
+  <div class="writeup-image">
+    <img src="/assets/writeups/kctf-scoreboard.png" alt="Kaspersky CTF 2026 scoreboard, Europe league">
+    <div class="img-caption">Final standing in the Europe regional league</div>
   </div>
-{% endif %}{% endfor %}
+  {% for w in items %}{% if w.lang == "en" and w.kind != "lab" and w.series == "kaspersky-ctf-2026" %}{% include writeup-entry.html w=w lang="en" %}{% endif %}{% endfor %}
+
+  <h2>HackTheBox</h2>
+  <p>Single machines, full attack chain: enumeration, exploitation, privilege escalation.</p>
+  {% for w in items %}{% if w.lang == "en" and w.kind != "lab" and w.series == nil %}{% include writeup-entry.html w=w lang="en" %}{% endif %}{% endfor %}
+
 </div>

@@ -1,0 +1,13 @@
+<div class="writeup-entry">
+    <div class="writeup-header">
+      <h3><a href="{{ include.w.url }}">{{ include.w.title }}</a>{% if include.w.platform %} <span class="platform-badge"{% if include.w.platform_color %} style="background:{{ include.w.platform_color }};"{% endif %}>{{ include.w.platform }}</span>{% endif %}</h3>
+    </div>
+    <div class="writeup-meta">
+      {{ include.w.date | date: "%Y-%m-%d" }}{% if include.w.os %} &nbsp;|&nbsp; OS: {{ include.w.os }}{% endif %}{% if include.w.difficulty %} &nbsp;|&nbsp; Difficulty: <span class="difficulty-{{ include.w.difficulty | downcase }}">{{ include.w.difficulty }}</span>{% endif %}
+    </div>
+    {% if include.w.tags %}<div class="writeup-tags">{% for t in include.w.tags %}<span>{{ t }}</span>{% endfor %}</div>{% endif %}
+    {% if include.w.summary %}<p class="writeup-summary">{{ include.w.summary }}</p>{% endif %}
+    <div class="writeup-download">
+      <a href="{{ include.w.url }}">{% if include.lang == "it" %}leggi &rarr;{% else %}read &rarr;{% endif %}</a>{% if include.w.txt %} &nbsp;&middot;&nbsp; <a href="{{ include.w.txt }}" target="_blank">&darr; .txt</a>{% endif %}{% if include.w.repo %} &nbsp;&middot;&nbsp; <a href="{{ include.w.repo }}" target="_blank">GitHub repo</a>{% endif %}
+    </div>
+  </div>
