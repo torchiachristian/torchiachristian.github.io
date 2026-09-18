@@ -304,87 +304,80 @@ body { zoom: 0.9; }
 body { max-width: 720px; line-height: 1.7; }
 @media (max-width: 600px) { body { zoom: 1; } }
 
-/* ==================== sezioni a tendina ==================== */
+/* ==================== sezioni writeup ==================== */
 
-details.series {
-    margin: 26px 0;
-    padding: 16px 18px;
-    border: 1px solid #d8d8d8;
-    background: #fcfcfc;
+.series-block {
+    margin: 34px 0;
+    padding-bottom: 8px;
 }
-details.series + details.series { margin-top: 18px; }
+.series-block + .series-block { border-top: 1px solid #e6e6e6; padding-top: 26px; }
+
+h2.series-title {
+    font-size: 1.18em;
+    border-bottom: none;
+    padding-bottom: 0;
+    margin: 0 0 8px 0;
+}
+.series-count {
+    font-size: 0.68em;
+    font-weight: normal;
+    color: #555;
+    border: 1px solid #d5d5d5;
+    background: #fafafa;
+    padding: 2px 7px;
+    margin-left: 8px;
+    vertical-align: middle;
+    letter-spacing: 0.02em;
+}
+.series-desc {
+    font-size: 0.88em;
+    color: #3a3a3a;
+    line-height: 1.6;
+    margin: 0 0 14px 0;
+}
+
 details.series > summary {
     cursor: pointer;
     list-style: none;
-    display: block;
+    display: inline-block;
+    font-size: 0.82em;
+    color: #111;
+    border: 1px solid #c8c8c8;
+    background: #f4f4f4;
+    padding: 5px 12px;
+    user-select: none;
 }
 details.series > summary::-webkit-details-marker { display: none; }
+details.series > summary::before {
+    content: "+ ";
+    color: #777;
+}
+details.series[open] > summary::before { content: "\2212 "; }
+details.series > summary:hover { background: #ececec; border-color: #999; }
 details.series > summary:focus { outline: none; }
+details.series[open] > summary { margin-bottom: 6px; }
 
-.series-title {
-    display: block;
-    font-size: 1.12em;
-    font-weight: bold;
-    color: #000;
-}
-details.series > summary .series-title::before {
-    content: "+";
-    display: inline-block;
-    width: 1.1em;
-    color: #999;
-    font-weight: normal;
-}
-details.series[open] > summary .series-title::before {
-    content: "\2212";
-    color: #333;
-}
-details.series > summary:hover .series-title { color: #333; }
-details.series > summary:hover .series-title::before { color: #333; }
-
-.series-count {
-    font-size: 0.7em;
-    font-weight: normal;
-    color: #666;
-    border: 1px solid #ddd;
-    background: #fff;
-    padding: 1px 6px;
-    margin-left: 6px;
-    vertical-align: middle;
-}
-
-.series-desc {
-    display: block;
-    font-size: 0.87em;
-    color: #444;
-    line-height: 1.55;
-    margin: 8px 0 0 1.1em;
-}
-details.series[open] > summary .series-desc {
-    margin-bottom: 18px;
-    padding-bottom: 14px;
-    border-bottom: 1px solid #e6e6e6;
-}
-
-details.series .writeup-entry:last-of-type { border-bottom: none; padding-bottom: 6px; }
+details.series .writeup-entry:last-of-type { border-bottom: none; }
 .series-foot {
-    margin: 4px 0 0 0;
+    margin: 0;
     padding-top: 14px;
     border-top: 1px solid #e6e6e6;
     font-size: 0.82em;
 }
 
 /* ==================== vignettatura ==================== */
+/* su html e non su body: body ha zoom, che rompe position fixed */
 
-body::before {
+html { position: relative; }
+html::before {
     content: "";
     position: fixed;
-    inset: 0;
+    top: 0; left: 0; right: 0; bottom: 0;
     pointer-events: none;
-    z-index: 100;
-    box-shadow: inset 0 0 180px 40px rgba(0,0,0,0.055);
+    z-index: 9999;
+    box-shadow: inset 0 0 200px 60px rgba(0,0,0,0.075);
 }
 
 @media (max-width: 600px) {
-    details.series { padding: 12px 13px; }
-    body::before { box-shadow: inset 0 0 90px 20px rgba(0,0,0,0.045); }
+    html::before { box-shadow: inset 0 0 100px 28px rgba(0,0,0,0.06); }
 }
