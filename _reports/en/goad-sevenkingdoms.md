@@ -1,0 +1,405 @@
+---
+layout: report
+lang: en
+permalink: /en/reports/goad-sevenkingdoms/
+title: "GOAD-Mini, sevenkingdoms.local domain"
+ref: goad-sevenkingdoms
+date: 2026-09-01
+bare: true
+target: Windows Server 2019, single domain controller
+approccio: Black box, no initial credentials
+findings: "6 (2 critical, 1 high, 3 medium)"
+tags: [win, active-directory, kerberos, dacl, dcsync, bloodhound, netexec, impacket]
+txt: /reports-files/goad-sevenkingdoms-en.txt
+summary: "From mere presence on the network to full control of the domain, without exploiting a single unpatched piece of software: information exposed to anyone unauthenticated, a guessable password and a badly assigned permission on Domain Admins."
+---
+
+# Penetration Test Report — GOAD-Mini, sevenkingdoms.local domain
+
+Author: Christian Torchia
+Date: September 2026
+
+---
+
+## 1. Summary
+
+A lab Windows domain with a single domain controller was assessed, starting from a network position with no credentials at all, with the aim of checking whether and how quickly an attacker already present on the internal network can reach complete control of the domain.
+
+Six weaknesses were identified: two critical, one high severity and three medium.
+
+The main risk is that from mere presence on the network you reach total control of the domain. The path required no exploit of unpatched systems: information exposed to anyone unauthenticated, a guessable password and a badly assigned permission on an administrative group were enough. At the end it was possible to extract every credential in the domain, including the one that signs authentication tickets: whoever holds it keeps access even after every user password is changed
+
+First thing to do: remove the full control permission that an ordinary account holds over the Domain Admins group.
+
+---
+
+## 2. Scope and limits
+
+Target: 192.168.56.10, KINGSLANDING, controller of the sevenkingdoms.local domain, Windows Server 2019 Build 17763.
+Out of scope: the virtualisation host, the lab's NAT network, any other segment.
+Type: black box, internal. The test started with no credentials, no user list and no knowledge of the domain structure, in the position of someone who has obtained access to the internal network.
+Duration: a three-hour window.
+Authorisation: public lab set up locally for training purposes. No third-party system involved, no real data.
+
+This is an exercise I set myself, not an engagement. The format is that of a penetration test report because that's the format this work is delivered in, and I wanted to try writing one in full instead of stopping at the list of what I had found.
+
+Limitations: time-boxed assessment, coverage is not exhaustive. No denial of service testing was performed. A single compromise path was deliberately followed, the shortest one, without exploring the alternatives: the stated objective was to demonstrate that maximum privilege is reachable, not to catalogue every route.
+
+### On the environment
+
+GOAD, Game of Active Directory, is an Active Directory lab maintained by Orange Cyberdefense and distributed as an open project. It isn't a simulator: it's a real Windows Server domain, built by Vagrant and configured by Ansible, containing the misconfigurations you meet in production infrastructures, accounts with Kerberos pre-authentication disabled, service accounts with attackable SPNs, chains of badly delegated permissions, abusable certificate templates. GOAD-Mini is the version reduced to a single domain and a single controller, intended for practising individual techniques instead of cross-forest chains.
+
+The methodological consequence is that the techniques used here are the same ones used against a corporate domain, with the difference that here the authorisation is implicit in the environment.
+
+---
+
+## 3. Methodology
+
+Reference: PTES, Penetration Testing Execution Standard, for the sequence of phases.
+
+Phases performed: network reconnaissance, unauthenticated enumeration, acquisition of the first credential, authenticated enumeration, privilege escalation, demonstration of impact.
+
+Tools: nmap 7.80, enum4linux-ng, NetExec, Impacket (GetNPUsers, GetUserSPNs, secretsdump), bloodhound-python, BloodHound Community Edition, samba net rpc, hashcat.
+
+Severity criterion: CVSS v3.1.
+
+Note on the constraint that determined the path: the domain password policy locks accounts after five failed attempts, with a five-minute duration. This rules out extended wordlists a priori: a dictionary attack would have locked most of the domain's accounts within the first seconds. The choice was to use short, targeted lists, accepting a lower success rate in exchange for almost no noise. In a real engagement locking a client's accounts is the fastest way to end the test early, and it should be treated as a scope constraint, not a technical detail.
+
+Note on evidence: the entire chain was executed from the command line, so the primary evidence is the complete command output, in the appendix. The only screenshot attached is the BloodHound graph for finding G-05, where the visual representation of the permission is more readable than its textual form.
+
+---
+
+## 4. Findings overview
+
+| ID | Title | Severity | CVSS |
+|---|---|---|---|
+| G-06 | DCSync: extraction of every credential in the domain | Critical | 9.1 |
+| G-05 | GenericAll permission of an ordinary account over the Domain Admins group | Critical | 8.8 |
+| G-04 | Weak password on a domain account, obtained by password spray | High | 8.1 |
+| G-01 | Domain enumeration through an anonymous SMB session | Medium | 5.3 |
+| G-02 | User enumeration via Kerberos without credentials | Medium | 5.3 |
+| G-03 | Password policy with no complexity requirements | Medium | 5.3 |
+
+---
+
+## 5. Findings in detail
+
+### G-05 GenericAll permission of an ordinary account over the Domain Admins group
+
+Severity: Critical
+CVSS v3.1: 8.8 (AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H)
+Component: CN=Domain Admins,CN=Users,DC=sevenkingdoms,DC=local
+
+**Description**
+
+The account lord.varys, which belongs to no administrative group, holds the GenericAll permission over the Domain Admins group object. GenericAll is total control over the object: it includes modifying the member attribute, so whoever holds it can add themselves to the group. It isn't a software vulnerability: it's an entry in the object's access control list, so there is no patch and it isn't detected by any vulnerability scan.
+
+**Evidence**
+
+Reading the group's DACL, with domain credentials:
+
+nxc ldap 192.168.56.10 -u &lt;user> -p &lt;password> -M daclread -o TARGET_DN="CN=Domain Admins,CN=Users,DC=sevenkingdoms,DC=local" ACTION=read
+
+Trustee (SID) : lord.varys (S-1-5-21-1433553267-1543600054-990822490-1120)
+Access mask   : FullControl, Modify, ReadAndExecute, ReadAndWrite, Read, Write, WriteDACL, Delete, ListObject, WriteProperties, Self, CreateChild (0xf01ff)
+
+Exploitation, with lord.varys's credentials alone:
+
+net rpc group addmem "Domain Admins" lord.varys -U "sevenkingdoms.local/lord.varys%&lt;password>" -S 192.168.56.10
+
+Verification of the privilege obtained:
+
+nxc smb 192.168.56.10 -u lord.varys -p &lt;password>
+SMB 192.168.56.10 445 KINGSLANDING [+] sevenkingdoms.local\lord.varys (Pwn3d!)
+
+NetExec's Pwn3d! marker indicates administrative access on the host, which on a domain controller is equivalent to Domain Admin.
+
+<div class="writeup-image">
+  <img src="/assets/reports/G-05-bloodhound-path.png" alt="BloodHound graph of the permission over Domain Admins">
+  <div class="img-caption">The two edges between lord.varys and Domain Admins: GenericAll is the pre-existing permission, MemberOf is the membership created by the attack</div>
+</div>
+
+**Impact**
+
+Complete compromise of the domain from an unprivileged account, in a single step, with no exploit. With Domain Admin obtained, every host joined to the domain is administrable, every group policy is modifiable, every credential is extractable as shown in G-06.
+
+The aggravating factor is detectability: adding to Domain Admins generates event 4728 in the controller's logs, but the permission that made it possible generates nothing and can sit in place for years. Permissions of this kind typically come from delegations made by hand to solve an operational problem and never revoked.
+
+**Remediation**
+
+Remove lord.varys's GenericAll entry from the Domain Admins group DACL and return the object to the default DACL inherited from the container.
+
+In the same session, check whether the permission is also assigned on AdminSDHolder: the entries present in that object are automatically re-propagated onto protected objects by the SDProp process, so a removal made only on the group would come back within an hour.
+
+As a process measure, periodically audit the ACLs on privileged groups with a scheduled BloodHound collection, comparing results between successive runs. It is the only practical way to notice a delegation added by hand.
+
+**References**
+
+CWE-266 Incorrect Privilege Assignment
+CWE-732 Incorrect Permission Assignment for Critical Resource
+MITRE ATT&CK T1098 Account Manipulation, T1078.002 Domain Accounts
+
+---
+
+### G-06 DCSync: extraction of every credential in the domain
+
+Severity: Critical
+CVSS v3.1: 9.1 (AV:N/AC:L/PR:H/UI:N/S:C/C:H/I:H/A:N)
+Component: directory service replication on the domain controller
+
+**Description**
+
+With the privileges obtained in G-05 it is possible to ask the domain controller to replicate the directory's secrets, leveraging the DRSUAPI protocol extensions that controllers normally use to synchronise with each other. The operation requires no code on the target machine, writes no files and doesn't touch the disk: from outside it is legitimate replication traffic.
+
+**Evidence**
+
+secretsdump.py 'sevenkingdoms.local/lord.varys:&lt;password>'@192.168.56.10 -just-dc-ntlm
+
+Administrator:500:aad3b435b51404eeaad3b435b51404ee:c66d72021a2d&#46;&#46;&#46;:::
+Guest:501:aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c&#46;&#46;&#46;:::
+krbtgt:502:aad3b435b51404eeaad3b435b51404ee:4597994110940445b50b&#46;&#46;&#46;:::
+vagrant:1000:aad3b435b51404eeaad3b435b51404ee:e02bc503339d51f71d&#46;&#46;&#46;:::
+tywin.lannister:1111:aad3b435b51404eeaad3b435b51404ee:af52e9ec34&#46;&#46;&#46;:::
+jaime.lannister:1112:aad3b435b51404eeaad3b435b51404ee:12e3795b7d&#46;&#46;&#46;:::
+cersei.lannister:1113:aad3b435b51404eeaad3b435b51404ee:c247f62516&#46;&#46;&#46;:::
+tyron.lannister:1114:aad3b435b51404eeaad3b435b51404ee:b3b3717f7d&#46;&#46;&#46;:::
+[output truncated, 16 accounts in total]
+
+The hashes are reported truncated in this document. The complete output is in the appendix.
+
+**Impact**
+
+Every credential in the domain is in the attacker's hands as NTLM hashes, immediately usable in pass-the-hash with no need to crack them.
+
+The critical value is the hash of the krbtgt account, which is the key the controller uses to sign every Kerberos ticket. Whoever holds it can forge arbitrary tickets, the Golden Ticket, authenticating as any user, including non-existent ones, with any group membership. A forged ticket stays valid even after resetting every user's password: the only fix is rotating the krbtgt account, twice with time in between so as not to invalidate tickets in flight. Until then the compromise is persistent.
+
+**Remediation**
+
+Immediately, remove the cause in G-05 and rotate the krbtgt password twice, with an interval longer than the maximum ticket lifetime, then force a reset of the privileged credentials.
+
+Structurally, audit which principals hold the DS-Replication-Get-Changes and DS-Replication-Get-Changes-All extended rights on the domain object: outside the controllers and the intended service accounts they must not exist. Monitoring event 4662 filtered on those extended right GUIDs is the detection that catches DCSync as it happens, and in the current setup it isn't present.
+
+**References**
+
+CWE-522 Insufficiently Protected Credentials
+MITRE ATT&CK T1003.006 OS Credential Dumping: DCSync, T1558.001 Golden Ticket
+
+---
+
+### G-04 Weak password on a domain account, obtained by password spray
+
+Severity: High
+CVSS v3.1: 8.1 (AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:N)
+Component: SMB authentication, domain accounts
+
+**Description**
+
+lord.varys's credential was obtained by trying a small number of plausible passwords built on the account name and on the domain context. The password in use is short and derived from the account name with character substitutions, a pattern a targeted wordlist covers in a few attempts.
+
+**Evidence**
+
+Attempts within the lockout limit, against a single account:
+
+nxc smb 192.168.56.10 -u lord.varys -p &lt;list of 5 candidates> &#45;&#45;continue-on-success
+
+SMB 192.168.56.10 445 KINGSLANDING [+] sevenkingdoms.local\lord.varys:&lt;valid password>
+
+The other four candidates returned authentication failure. The successful authentication was subsequently confirmed over LDAP and through an SMB session.
+
+**Impact**
+
+The move from the unauthenticated position to that of a domain user, which is the turning point of the entire chain: from there complete directory enumeration, the BloodHound collection and the ACL reading that led to G-05 all become possible.
+
+The severity accounts for the fact that guessing the password requires attempts with an uncertain outcome, hence AC:H, and for the fact that the lockout constraint forces the attacker to be careful. It doesn't reduce it: the lockout slows the attack, it doesn't prevent it, because the counter resets itself after five minutes and allows a slow, indefinitely repeatable campaign.
+
+**Remediation**
+
+Impose a fifteen-character minimum length on domain accounts and adopt a banned password list including variations built on the username, the organisation name and the domain name, because that is exactly the pattern that worked here. A complexity-only check doesn't catch this case: the password found satisfies uppercase, lowercase, digits and symbols.
+
+Enable monitoring of events 4771 and 4625 aggregated per time window, which is what distinguishes a slow password spray from users' ordinary typing errors.
+
+**References**
+
+CWE-521 Weak Password Requirements
+MITRE ATT&CK T1110.003 Password Spraying
+
+---
+
+### G-01 Domain enumeration through an anonymous SMB session
+
+Severity: Medium
+CVSS v3.1: 5.3 (AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N)
+Component: SMB 445/tcp, RPC 135/tcp, NetBIOS 139/tcp
+
+**Description**
+
+The controller accepts SMB sessions without credentials and from these returns the domain configuration: DNS name, NetBIOS name, controller name, operating system version and domain security identifier.
+
+**Evidence**
+
+nmap -Pn -p 53,88,135,139,389,445,464,593,636,3268,3269,5985,9389 192.168.56.10
+-> all ports open, the profile of a domain controller
+
+enum4linux-ng -A 192.168.56.10
+
+Long domain name         : sevenkingdoms.local
+NetBIOS domain name      : SEVENKINGDOMS
+NetBIOS computer name    : KINGSLANDING
+Domain SID               : S-1-5-21-1433553267-1543600054-990822490
+SMB signing required     : true
+Preferred dialect        : SMB 3.1.1
+SMB 1.0                  : false
+
+nxc smb 192.168.56.10 -u '' -p ''
+-> (Null Auth:True)
+
+Worth noting on the positive side: SMB 1.0 is disabled and SMB signing is mandatory, so classic NTLM relay isn't practical against this host. Account enumeration via anonymous RPC and via anonymous LDAP is closed and returns access denied.
+
+**Impact**
+
+An attacker with no credentials derives the domain name and the SID, which are the two parameters needed by everything that follows: without the domain name you can't formulate a Kerberos request, and the SID is the precondition for building forged tickets. The finding grants access to nothing in itself, but it is the chain's starting condition.
+
+**Remediation**
+
+Set RestrictAnonymous and RestrictAnonymousSAM to deny anonymous enumeration, and limit the exposure of 445/tcp and 139/tcp to only those segments that need to reach the controller, through network segmentation or a host firewall.
+
+It should be said that complete elimination isn't realistic: part of this information is necessary for the protocol to work. The effective measure is segmentation, which reduces who can ask the question, not the answer.
+
+**References**
+
+CWE-200 Exposure of Sensitive Information to an Unauthorized Actor
+MITRE ATT&CK T1087.002 Account Discovery: Domain Account
+
+---
+
+### G-02 User enumeration via Kerberos without credentials
+
+Severity: Medium
+CVSS v3.1: 5.3 (AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N)
+Component: Kerberos KDC, 88/tcp
+
+**Description**
+
+The KDC answers differently to an authentication request for an existing account and for a non-existent one. For an account that doesn't exist it returns KDC_ERR_C_PRINCIPAL_UNKNOWN, for an existing one it signals that pre-authentication is required. The difference makes it possible to validate a list of names without knowing any password and, which is what distinguishes this technique from a login attempt, without incrementing the failed attempt counter and therefore without risking account lockout.
+
+**Evidence**
+
+GetNPUsers.py sevenkingdoms.local/ -usersfile users.txt -dc-ip 192.168.56.10 -format hashcat -no-pass
+
+[-] User robert.baratheon doesn't have UF_DONT_REQUIRE_PREAUTH set
+[-] User cersei.lannister doesn't have UF_DONT_REQUIRE_PREAUTH set
+[-] User tywin.lannister doesn't have UF_DONT_REQUIRE_PREAUTH set
+[-] User lord.varys doesn't have UF_DONT_REQUIRE_PREAUTH set
+[&#46;&#46;&#46;]
+[-] Kerberos SessionError: KDC_ERR_C_PRINCIPAL_UNKNOWN (Client not found in Kerberos database)
+
+Eleven accounts confirmed as existing, ten names confirmed as non-existent, no credential used.
+
+The same command ruled out the presence of accounts with Kerberos pre-authentication disabled, so AS-REP Roasting wasn't practical against this domain. Kerberoasting was ruled out too: GetUserSPNs.py returned no service account with a registered SPN. Both checks are reported because they define the reason the chain went through a password spray and not through roasting.
+
+**Impact**
+
+It hands the attacker the list of the domain's real accounts silently, which is the precondition for G-04: a password spray against verified names has an incomparably better attempts-to-result ratio than one against hypothetical names, and for the same noise it covers more useful accounts.
+
+**Remediation**
+
+The behaviour is intrinsic to Kerberos and can't be fixed at the protocol level. The practical mitigation is detection: monitor the volume of event 4768 with an error outcome coming from the same address within a short window, which is this technique's signature. In the current setup no monitoring is present and the enumeration passed without a usable trace.
+
+Reducing the predictability of usernames, avoiding a generalised firstname.lastname scheme, raises the cost of the attack but has an operational cost of its own and should be assessed case by case.
+
+**References**
+
+CWE-204 Observable Response Discrepancy
+MITRE ATT&CK T1087.002 Account Discovery: Domain Account
+
+---
+
+### G-03 Password policy with no complexity requirements
+
+Severity: Medium
+CVSS v3.1: 5.3 (AV:N/AC:H/PR:L/UI:N/S:U/C:L/I:L/A:N)
+Component: domain policy, Default Domain Policy
+
+**Description**
+
+The domain policy imposes no complexity requirements on passwords. The complexity flag is disabled, so passwords made up of a single character set and lacking a meaningful minimum length are accepted.
+
+**Evidence**
+
+nxc smb 192.168.56.10 -u &lt;user> -p &lt;password> &#45;&#45;pass-pol
+
+Password Complexity Flags       : 000000
+   Domain Password Complex      : 0
+   Domain Password Store Cleartext: 0
+   Domain Password Lockout Admins : 0
+Minimum password age            : 1 day
+Maximum password age            : 311 days
+Account Lockout Threshold       : 5
+Locked Account Duration         : 5 minutes
+Reset Account Lockout Counter   : 5 minutes
+
+**Impact**
+
+It is the condition that makes G-04 practical. Two values worsen the picture beyond complexity: the lock duration of only five minutes, which lets an attacker repeat four attempts per account every five minutes indefinitely without ever crossing the threshold, and Domain Password Lockout Admins at zero, which excludes administrative accounts from the lock and makes them targets with no attempt limit.
+
+The maximum age of 311 days also keeps a compromised password valid for a very long period.
+
+**Remediation**
+
+Enable the complexity requirement and raise the minimum length to fifteen characters, raise the lock duration to a value that makes the slow campaign unprofitable, and don't exclude administrative accounts from the lock.
+
+Replace the complexity-only check with a banned password list, because the password compromised in G-04 would have satisfied the complexity requirement: meeting it says nothing about resistance to a targeted attack.
+
+**References**
+
+CWE-521 Weak Password Requirements
+CWE-262 Not Using Password Aging
+
+---
+
+## 6. Attack chain
+
+From presence on the network segment to control of the domain, without exploiting any unpatched software vulnerability.
+
+1. Reconnaissance identifies 192.168.56.10 as a domain controller from the profile of its open ports, in particular 88, 389, 464 and 3268.
+2. G-01 provides, with no credentials, the domain name sevenkingdoms.local, the controller name KINGSLANDING and the domain SID. These are the parameters required by every subsequent step.
+3. G-02 validates the list of real accounts by querying the KDC, without incrementing the failed attempt counter. The same step rules out AS-REP Roasting and Kerberoasting as practical routes, which determines the choice of the password spray.
+4. G-03 establishes that the domain imposes no complexity and that the lock lasts five minutes. It defines the attack budget: four attempts per account every five minutes.
+5. G-04 converts that budget into a valid credential: lord.varys has a password derived from their own username. From here the attacker is a domain user.
+6. With that credential the BloodHound collection exposes the directory's relationships and leads to G-05: lord.varys has GenericAll over the Domain Admins group.
+7. G-05 is exploited by adding the account to the group. The domain's maximum privilege is obtained in a single step, starting from an ordinary account.
+8. G-06 demonstrates the impact: directory replication returns every credential in the domain, including the krbtgt hash, which makes the compromise persist beyond a password reset.
+
+The chain's breaking point is step 5. Without a domain credential the permission in step 6 is neither readable nor exploitable, and findings G-01 to G-03 remain information with no consequences.
+
+---
+
+## 7. Recommendations
+
+**Immediate, within days**
+
+Remove lord.varys's GenericAll permission from the Domain Admins group DACL, checking AdminSDHolder too so that SDProp doesn't re-propagate it (G-05). Rotate the krbtgt password twice with time in between and reset the privileged credentials, because as long as the extracted hash is valid access remains possible (G-06). Change lord.varys's password (G-04).
+
+**Short term, within weeks**
+
+Audit the principals holding the extended replication rights on the domain object and reduce them to the controllers and intended service accounts (G-06). Enable complexity and a fifteen-character minimum length, with a banned password list covering variations on username and domain name; raise the lock duration and include administrative accounts (G-03, G-04). Deny anonymous SMB enumeration and limit the exposure of 139 and 445 through segmentation (G-01).
+
+**Structural, on process**
+
+The two critical findings aren't software defects and no vulnerability scan would have flagged them: they are a permission delegated by hand and never revoked, plus its consequence. What's needed is a scheduled BloodHound collection with comparison between successive runs, so that a new delegation on a privileged group emerges as a difference instead of sitting in place for years.
+
+The second theme is detection. Three of the chain's six steps, the anonymous enumeration, the Kerberos enumeration and the DCSync, passed without leaving a usable trace, even though they generate events Windows does record. Event 4662 filtered on the replication right GUIDs, the volume of 4768 errors per source address, and 4728 on privileged groups should all be brought under monitoring. Without these, an identical attack stays invisible even when repeated
+
+---
+
+## 8. Appendix
+
+Complete command outputs, kept locally:
+
+nmap-dc01.txt
+enum4linux.txt
+asrep.txt (Kerberos enumeration and exclusion of AS-REP Roasting)
+daclread-domainadmins.txt (complete DACL, 222 lines)
+pwned-varys.txt
+dcsync.txt (complete dump, 16 accounts)
+20260921173210_bloodhound.zip (BloodHound collection)
