@@ -1,0 +1,405 @@
+---
+layout: report
+lang: it
+permalink: /reports/goad-sevenkingdoms/
+title: "GOAD-Mini, dominio sevenkingdoms.local"
+ref: goad-sevenkingdoms
+date: 2026-09-01
+bare: true
+target: Windows Server 2019, controller di dominio singolo
+approccio: Black box, nessuna credenziale iniziale
+findings: "6 (2 critici, 1 alto, 3 medi)"
+tags: [win, active-directory, kerberos, dacl, dcsync, bloodhound, netexec, impacket]
+txt: /reports-files/goad-sevenkingdoms.txt
+summary: "Dalla sola presenza sulla rete al controllo totale del dominio, senza sfruttare nessun software non aggiornato: informazioni esposte a chi non è autenticato, una password indovinabile e un permesso assegnato male su Domain Admins."
+---
+
+# Penetration Test Report — GOAD-Mini, dominio sevenkingdoms.local
+
+Autore: Christian Torchia
+Data: settembre 2026
+
+---
+
+## 1. Sintesi
+
+È stato valutato un dominio Windows di laboratorio con un solo controller di dominio, partendo da una posizione di rete senza alcuna credenziale, con lo scopo di verificare se e in quanto tempo un attaccante già presente sulla rete interna possa arrivare al controllo completo del dominio.
+
+Sono state individuate sei debolezze: due critiche, una di gravità alta e tre medie.
+
+Il rischio principale è che dalla sola presenza sulla rete si arriva al controllo totale del dominio. Il percorso non ha richiesto alcun exploit di sistemi non aggiornati: sono bastate informazioni esposte a chi non è autenticato, una password indovinabile e un permesso assegnato male su un gruppo amministrativo. Al termine è stato possibile estrarre tutte le credenziali del dominio, compresa quella che firma i ticket di autenticazione: chi la possiede mantiene l'accesso anche dopo il cambio di tutte le password degli utenti
+
+Da fare per primo: rimuovere il permesso di controllo totale che un'utenza ordinaria detiene sul gruppo Domain Admins.
+
+---
+
+## 2. Scope e limiti
+
+Target: 192.168.56.10, KINGSLANDING, controller del dominio sevenkingdoms.local, Windows Server 2019 Build 17763.
+Fuori scope: l'host di virtualizzazione, la rete NAT del laboratorio, qualunque altro segmento.
+Tipologia: black box, interno. Il test è iniziato senza credenziali, senza elenco utenti e senza conoscenza della struttura del dominio, nella posizione di chi ha ottenuto accesso alla rete interna.
+Durata: una finestra di tre ore.
+Autorizzazione: laboratorio pubblico allestito in locale per scopi formativi. Nessun sistema di terzi coinvolto, nessun dato reale.
+
+È un esercizio che mi sono dato da solo, non un incarico. Il formato è quello di un report di penetration test perché è il formato in cui questo lavoro si consegna, e volevo provare a scriverne uno per intero invece di fermarmi alla lista di quello che avevo trovato.
+
+Limitazioni: valutazione a tempo, la copertura non è esaustiva. Non è stato eseguito test di denial of service. È stato deliberatamente percorso un solo cammino di compromissione, quello più breve, senza esplorare le alternative: l'obiettivo dichiarato era dimostrare la raggiungibilità del privilegio massimo, non censire tutte le strade.
+
+### Sull'ambiente
+
+GOAD, Game of Active Directory, è un laboratorio Active Directory mantenuto da Orange Cyberdefense e distribuito come progetto aperto. Non è un simulatore: è un dominio Windows Server reale, costruito da Vagrant e configurato da Ansible, con dentro le configurazioni sbagliate che si incontrano nelle infrastrutture in produzione, account con pre-autenticazione Kerberos disabilitata, service account con SPN attaccabili, catene di permessi mal delegati, template di certificati abusabili. GOAD-Mini è la versione ridotta a un solo dominio e un solo controller, pensata per provare tecniche singole invece di catene tra foreste.
+
+La conseguenza metodologica è che le tecniche usate qui sono le stesse che si usano su un dominio aziendale, con la differenza che qui l'autorizzazione è implicita nell'ambiente.
+
+---
+
+## 3. Metodologia
+
+Riferimento: PTES, Penetration Testing Execution Standard, per la sequenza delle fasi.
+
+Fasi eseguite: ricognizione di rete, enumerazione non autenticata, acquisizione della prima credenziale, enumerazione autenticata, escalation dei privilegi, dimostrazione dell'impatto.
+
+Strumenti: nmap 7.80, enum4linux-ng, NetExec, Impacket (GetNPUsers, GetUserSPNs, secretsdump), bloodhound-python, BloodHound Community Edition, samba net rpc, hashcat.
+
+Criterio di gravità: CVSS v3.1.
+
+Nota sul vincolo che ha determinato il percorso: la password policy del dominio prevede blocco dell'account dopo cinque tentativi falliti, con durata di cinque minuti. Questo esclude a priori l'uso di wordlist estese: un attacco a dizionario avrebbe bloccato la maggior parte degli account del dominio nei primi secondi. La scelta è stata di usare liste corte e mirate, accettando un tasso di successo più basso in cambio di un rumore quasi nullo. In un engagement reale bloccare gli account di un cliente è il modo più rapido di chiudere il test in anticipo, e va trattato come vincolo di scope, non come dettaglio tecnico.
+
+Nota sulle prove: tutta la catena è stata eseguita da riga di comando, quindi la prova primaria è l'output integrale del comando, in appendice. L'unica cattura di schermo allegata è il grafo BloodHound del finding G-05, dove la rappresentazione visiva del permesso è più leggibile della sua lettura testuale.
+
+---
+
+## 4. Quadro dei risultati
+
+| ID | Titolo | Gravità | CVSS |
+|---|---|---|---|
+| G-06 | DCSync: estrazione di tutte le credenziali del dominio | Critica | 9.1 |
+| G-05 | Permesso GenericAll di un'utenza ordinaria sul gruppo Domain Admins | Critica | 8.8 |
+| G-04 | Password debole su utenza di dominio, ottenuta via password spray | Alta | 8.1 |
+| G-01 | Enumerazione del dominio tramite sessione SMB anonima | Media | 5.3 |
+| G-02 | Enumerazione utenti via Kerberos senza credenziali | Media | 5.3 |
+| G-03 | Password policy priva di requisiti di complessità | Media | 5.3 |
+
+---
+
+## 5. Dettaglio dei risultati
+
+### G-05 Permesso GenericAll di un'utenza ordinaria sul gruppo Domain Admins
+
+Gravità: Critica
+CVSS v3.1: 8.8 (AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H)
+Componente: CN=Domain Admins,CN=Users,DC=sevenkingdoms,DC=local
+
+**Descrizione**
+
+L'utenza lord.varys, che non appartiene a nessun gruppo amministrativo, detiene il permesso GenericAll sull'oggetto del gruppo Domain Admins. GenericAll è il controllo totale sull'oggetto: include la modifica dell'attributo member, quindi chi lo possiede può aggiungere se stesso al gruppo. Non è una vulnerabilità del software: è una voce nella lista di controllo di accesso dell'oggetto, quindi non esiste patch e non viene rilevata da alcuna scansione di vulnerabilità.
+
+**Prova**
+
+Lettura della DACL del gruppo, con credenziali di dominio:
+
+nxc ldap 192.168.56.10 -u <utente> -p <password> -M daclread -o TARGET_DN="CN=Domain Admins,CN=Users,DC=sevenkingdoms,DC=local" ACTION=read
+
+Trustee (SID) : lord.varys (S-1-5-21-1433553267-1543600054-990822490-1120)
+Access mask   : FullControl, Modify, ReadAndExecute, ReadAndWrite, Read, Write, WriteDACL, Delete, ListObject, WriteProperties, Self, CreateChild (0xf01ff)
+
+Sfruttamento, con le sole credenziali di lord.varys:
+
+net rpc group addmem "Domain Admins" lord.varys -U "sevenkingdoms.local/lord.varys%<password>" -S 192.168.56.10
+
+Verifica del privilegio ottenuto:
+
+nxc smb 192.168.56.10 -u lord.varys -p <password>
+SMB 192.168.56.10 445 KINGSLANDING [+] sevenkingdoms.local\lord.varys (Pwn3d!)
+
+Il marcatore Pwn3d! di NetExec indica accesso amministrativo sull'host, che sul controller di dominio equivale a Domain Admin.
+
+<div class="writeup-image">
+  <img src="/assets/reports/G-05-bloodhound-path.png" alt="Grafo BloodHound del permesso su Domain Admins">
+  <div class="img-caption">I due archi tra lord.varys e Domain Admins: GenericAll è il permesso preesistente, MemberOf è l'appartenenza creata dall'attacco</div>
+</div>
+
+**Impatto**
+
+Compromissione completa del dominio da un'utenza senza privilegi, in un solo passaggio, senza exploit. Ottenuto Domain Admin, ogni host membro del dominio è amministrabile, ogni criterio di gruppo è modificabile, ogni credenziale è estraibile come mostrato in G-06.
+
+L'aggravante è la rilevabilità: l'aggiunta a Domain Admins genera l'evento 4728 nei log del controller, ma il permesso che l'ha resa possibile non genera nulla e può restare in posizione per anni. Permessi di questo tipo nascono tipicamente da deleghe fatte a mano per risolvere un problema operativo e mai revocate.
+
+**Rimedio**
+
+Rimuovere la voce GenericAll di lord.varys dalla DACL del gruppo Domain Admins e ricondurre l'oggetto alla DACL predefinita ereditata dal container.
+
+Verificare nella stessa sessione se il permesso è assegnato anche su AdminSDHolder: le voci presenti in quell'oggetto vengono ripropagate automaticamente sugli oggetti protetti dal processo SDProp, quindi una rimozione fatta solo sul gruppo tornerebbe indietro entro un'ora.
+
+Come misura di processo, censire periodicamente le ACL sui gruppi privilegiati con una raccolta BloodHound pianificata, confrontando i risultati tra esecuzioni successive. È il solo modo pratico di accorgersi di una delega aggiunta a mano.
+
+**Riferimenti**
+
+CWE-266 Incorrect Privilege Assignment
+CWE-732 Incorrect Permission Assignment for Critical Resource
+MITRE ATT&CK T1098 Account Manipulation, T1078.002 Domain Accounts
+
+---
+
+### G-06 DCSync: estrazione di tutte le credenziali del dominio
+
+Gravità: Critica
+CVSS v3.1: 9.1 (AV:N/AC:L/PR:H/UI:N/S:C/C:H/I:H/A:N)
+Componente: replica del servizio directory sul controller di dominio
+
+**Descrizione**
+
+Con i privilegi ottenuti in G-05 è possibile richiedere al controller di dominio la replica dei segreti della directory, sfruttando le estensioni del protocollo DRSUAPI che i controller usano normalmente per sincronizzarsi tra loro. L'operazione non richiede codice sulla macchina bersaglio, non scrive file e non tocca il disco: da fuori è traffico di replica legittimo.
+
+**Prova**
+
+secretsdump.py 'sevenkingdoms.local/lord.varys:<password>'@192.168.56.10 -just-dc-ntlm
+
+Administrator:500:aad3b435b51404eeaad3b435b51404ee:c66d72021a2d&#46;&#46;&#46;:::
+Guest:501:aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c&#46;&#46;&#46;:::
+krbtgt:502:aad3b435b51404eeaad3b435b51404ee:4597994110940445b50b&#46;&#46;&#46;:::
+vagrant:1000:aad3b435b51404eeaad3b435b51404ee:e02bc503339d51f71d&#46;&#46;&#46;:::
+tywin.lannister:1111:aad3b435b51404eeaad3b435b51404ee:af52e9ec34&#46;&#46;&#46;:::
+jaime.lannister:1112:aad3b435b51404eeaad3b435b51404ee:12e3795b7d&#46;&#46;&#46;:::
+cersei.lannister:1113:aad3b435b51404eeaad3b435b51404ee:c247f62516&#46;&#46;&#46;:::
+tyron.lannister:1114:aad3b435b51404eeaad3b435b51404ee:b3b3717f7d&#46;&#46;&#46;:::
+[output troncato, 16 utenze complessive]
+
+Gli hash sono riportati troncati in questo documento. L'output integrale è in appendice.
+
+**Impatto**
+
+Tutte le credenziali del dominio sono nelle mani dell'attaccante in forma di hash NTLM, immediatamente utilizzabili in pass-the-hash senza bisogno di essere decifrati.
+
+Il valore critico è l'hash dell'account krbtgt, che è la chiave con cui il controller firma tutti i ticket Kerberos. Chi la possiede può forgiare ticket arbitrari, il Golden Ticket, autenticandosi come qualunque utente, compresi utenti inesistenti, con qualunque appartenenza di gruppo. Un ticket forgiato resta valido anche dopo il reset delle password di tutti gli utenti: l'unico rimedio è la rotazione dell'account krbtgt, due volte a distanza di tempo per non invalidare i ticket in corso. Fino a quel momento la compromissione è persistente.
+
+**Rimedio**
+
+Nell'immediato, rimuovere la causa in G-05 e ruotare la password di krbtgt due volte, con un intervallo maggiore della durata massima dei ticket, poi forzare il reset delle credenziali privilegiate.
+
+Strutturalmente, censire quali principal detengono i diritti estesi DS-Replication-Get-Changes e DS-Replication-Get-Changes-All sull'oggetto del dominio: al di fuori dei controller e degli account di servizio previsti non devono esistere. Monitorare l'evento 4662 filtrato su quei GUID di diritto esteso è il rilevamento che intercetta DCSync mentre accade, e nell'assetto attuale non è presente.
+
+**Riferimenti**
+
+CWE-522 Insufficiently Protected Credentials
+MITRE ATT&CK T1003.006 OS Credential Dumping: DCSync, T1558.001 Golden Ticket
+
+---
+
+### G-04 Password debole su utenza di dominio, ottenuta via password spray
+
+Gravità: Alta
+CVSS v3.1: 8.1 (AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:N)
+Componente: autenticazione SMB, utenze di dominio
+
+**Descrizione**
+
+La credenziale di lord.varys è stata ottenuta provando un numero ridotto di password verosimili costruite sul nome dell'utenza e sul contesto del dominio. La password in uso è breve e derivata dal nome dell'account con sostituzioni di caratteri, uno schema che una wordlist mirata copre in pochi tentativi.
+
+**Prova**
+
+Tentativi entro il limite di lockout, contro una sola utenza:
+
+nxc smb 192.168.56.10 -u lord.varys -p <lista di 5 candidate> &#45;&#45;continue-on-success
+
+SMB 192.168.56.10 445 KINGSLANDING [+] sevenkingdoms.local\lord.varys:<password valida>
+
+Le altre quattro candidate hanno restituito fallimento di autenticazione. L'autenticazione riuscita è stata confermata successivamente su LDAP e via sessione SMB.
+
+**Impatto**
+
+Passaggio dalla posizione non autenticata a quella di utente di dominio, che è il punto di svolta dell'intera catena: da lì diventano possibili l'enumerazione completa della directory, la raccolta BloodHound e la lettura delle ACL che ha portato a G-05.
+
+La gravità tiene conto del fatto che indovinare la password richiede tentativi con esito incerto, da cui AC:H, e del fatto che il vincolo di lockout impone all'attaccante prudenza. Non la riduce: il lockout rallenta l'attacco, non lo impedisce, perché il contatore si azzera da solo dopo cinque minuti e permette una campagna lenta e indefinitamente ripetibile.
+
+**Rimedio**
+
+Imporre una lunghezza minima di quindici caratteri sulle utenze di dominio e adottare una lista di password vietate che includa le variazioni costruite su nome utente, nome dell'organizzazione e nome del dominio, perché è esattamente lo schema che ha funzionato qui. Il controllo di sola complessità non intercetta questo caso: la password trovata soddisfa maiuscole, minuscole, cifre e simboli.
+
+Attivare il monitoraggio degli eventi 4771 e 4625 aggregati per finestra temporale, che è ciò che distingue un password spray lento dai normali errori di digitazione degli utenti.
+
+**Riferimenti**
+
+CWE-521 Weak Password Requirements
+MITRE ATT&CK T1110.003 Password Spraying
+
+---
+
+### G-01 Enumerazione del dominio tramite sessione SMB anonima
+
+Gravità: Media
+CVSS v3.1: 5.3 (AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N)
+Componente: SMB 445/tcp, RPC 135/tcp, NetBIOS 139/tcp
+
+**Descrizione**
+
+Il controller accetta sessioni SMB senza credenziali e da queste restituisce la configurazione del dominio: nome DNS, nome NetBIOS, nome del controller, versione del sistema operativo e identificativo di sicurezza del dominio.
+
+**Prova**
+
+nmap -Pn -p 53,88,135,139,389,445,464,593,636,3268,3269,5985,9389 192.168.56.10
+-> tutte le porte aperte, profilo di un controller di dominio
+
+enum4linux-ng -A 192.168.56.10
+
+Long domain name         : sevenkingdoms.local
+NetBIOS domain name      : SEVENKINGDOMS
+NetBIOS computer name    : KINGSLANDING
+Domain SID               : S-1-5-21-1433553267-1543600054-990822490
+SMB signing required     : true
+Preferred dialect        : SMB 3.1.1
+SMB 1.0                  : false
+
+nxc smb 192.168.56.10 -u '' -p ''
+-> (Null Auth:True)
+
+Da segnalare in positivo: SMB 1.0 è disabilitato e la firma SMB è obbligatoria, quindi il relay NTLM classico non è praticabile su questo host. L'enumerazione delle utenze via RPC anonimo e via LDAP anonimo è chiusa e restituisce accesso negato.
+
+**Impatto**
+
+Un attaccante senza credenziali ricava il nome del dominio e il SID, che sono i due parametri necessari a tutto ciò che viene dopo: senza il nome del dominio non si formula una richiesta Kerberos, e il SID è il presupposto della costruzione di ticket forgiati. Il finding non dà accesso a nulla di per sé, ma è la condizione di partenza della catena.
+
+**Rimedio**
+
+Impostare RestrictAnonymous e RestrictAnonymousSAM per negare l'enumerazione anonima, e limitare l'esposizione di 445/tcp e 139/tcp ai soli segmenti che devono raggiungere il controller, tramite segmentazione di rete o firewall di host.
+
+Va detto che l'eliminazione completa non è realistica: parte di queste informazioni sono necessarie al funzionamento del protocollo. La misura efficace è la segmentazione, che riduce chi può porre la domanda, non la risposta.
+
+**Riferimenti**
+
+CWE-200 Exposure of Sensitive Information to an Unauthorized Actor
+MITRE ATT&CK T1087.002 Account Discovery: Domain Account
+
+---
+
+### G-02 Enumerazione utenti via Kerberos senza credenziali
+
+Gravità: Media
+CVSS v3.1: 5.3 (AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N)
+Componente: Kerberos KDC, 88/tcp
+
+**Descrizione**
+
+Il KDC risponde in modo diverso a una richiesta di autenticazione per un'utenza esistente e per una inesistente. Per un'utenza che non esiste restituisce KDC_ERR_C_PRINCIPAL_UNKNOWN, per una esistente segnala che serve la pre-autenticazione. La differenza permette di validare un elenco di nomi senza conoscere alcuna password e, cosa che distingue questa tecnica dal tentativo di login, senza incrementare il contatore dei tentativi falliti e quindi senza rischiare il blocco degli account.
+
+**Prova**
+
+GetNPUsers.py sevenkingdoms.local/ -usersfile users.txt -dc-ip 192.168.56.10 -format hashcat -no-pass
+
+[-] User robert.baratheon doesn't have UF_DONT_REQUIRE_PREAUTH set
+[-] User cersei.lannister doesn't have UF_DONT_REQUIRE_PREAUTH set
+[-] User tywin.lannister doesn't have UF_DONT_REQUIRE_PREAUTH set
+[-] User lord.varys doesn't have UF_DONT_REQUIRE_PREAUTH set
+[&#46;&#46;&#46;]
+[-] Kerberos SessionError: KDC_ERR_C_PRINCIPAL_UNKNOWN (Client not found in Kerberos database)
+
+Undici utenze confermate esistenti, dieci nomi confermati inesistenti, nessuna credenziale usata.
+
+Lo stesso comando ha escluso la presenza di account con pre-autenticazione Kerberos disabilitata, quindi l'AS-REP Roasting non era praticabile su questo dominio. Anche il Kerberoasting è stato escluso: GetUserSPNs.py non ha restituito alcun service account con SPN registrato. Le due verifiche sono riportate perché definiscono la ragione per cui la catena è passata dal password spray e non dal roasting.
+
+**Impatto**
+
+Fornisce all'attaccante l'elenco delle utenze reali del dominio in forma silenziosa, che è il presupposto di G-04: un password spray su nomi verificati ha un rapporto tra tentativi e risultato incomparabilmente migliore rispetto a uno su nomi ipotetici, e a parità di rumore copre più utenze utili.
+
+**Rimedio**
+
+Il comportamento è intrinseco a Kerberos e non si corregge lato protocollo. La mitigazione praticabile è la rilevazione: monitorare il volume di eventi 4768 con esito di errore provenienti dallo stesso indirizzo in una finestra breve, che è la firma di questa tecnica. Nell'assetto attuale nessun monitoraggio è presente e l'enumerazione è passata senza traccia utilizzabile.
+
+Ridurre la prevedibilità dei nomi utente, evitando lo schema nome.cognome generalizzato, alza il costo dell'attacco ma ha un costo operativo proprio e va valutato caso per caso.
+
+**Riferimenti**
+
+CWE-204 Observable Response Discrepancy
+MITRE ATT&CK T1087.002 Account Discovery: Domain Account
+
+---
+
+### G-03 Password policy priva di requisiti di complessità
+
+Gravità: Media
+CVSS v3.1: 5.3 (AV:N/AC:H/PR:L/UI:N/S:U/C:L/I:L/A:N)
+Componente: criterio di dominio, Default Domain Policy
+
+**Descrizione**
+
+Il criterio di dominio non impone requisiti di complessità sulle password. Il flag di complessità è disattivato, quindi sono accettate password composte da un solo insieme di caratteri e prive di lunghezza minima significativa.
+
+**Prova**
+
+nxc smb 192.168.56.10 -u <utente> -p <password> &#45;&#45;pass-pol
+
+Password Complexity Flags       : 000000
+   Domain Password Complex      : 0
+   Domain Password Store Cleartext: 0
+   Domain Password Lockout Admins : 0
+Minimum password age            : 1 day
+Maximum password age            : 311 days
+Account Lockout Threshold       : 5
+Locked Account Duration         : 5 minutes
+Reset Account Lockout Counter   : 5 minutes
+
+**Impatto**
+
+È la condizione che rende praticabile G-04. Due valori aggravano il quadro oltre alla complessità: la durata del blocco di soli cinque minuti, che permette a un attaccante di ripetere quattro tentativi per utenza ogni cinque minuti indefinitamente senza mai superare la soglia, e Domain Password Lockout Admins a zero, che esclude gli account amministrativi dal blocco e li rende bersagli senza limite di tentativi.
+
+L'età massima di 311 giorni mantiene inoltre valida una password compromessa per un periodo molto lungo.
+
+**Rimedio**
+
+Attivare il requisito di complessità e portare la lunghezza minima a quindici caratteri, alzare la durata del blocco a un valore che renda non conveniente la campagna lenta, e non escludere gli account amministrativi dal blocco.
+
+Sostituire il controllo di sola complessità con una lista di password vietate, perché la password compromessa in G-04 avrebbe superato il requisito di complessità: soddisfarlo non dice nulla sulla resistenza a un attacco mirato.
+
+**Riferimenti**
+
+CWE-521 Weak Password Requirements
+CWE-262 Not Using Password Aging
+
+---
+
+## 6. Catena d'attacco
+
+Dalla presenza sul segmento di rete al controllo del dominio, senza sfruttare alcuna vulnerabilità di software non aggiornato.
+
+1. La ricognizione identifica 192.168.56.10 come controller di dominio dal profilo delle porte aperte, in particolare 88, 389, 464 e 3268.
+2. G-01 fornisce, senza credenziali, il nome del dominio sevenkingdoms.local, il nome del controller KINGSLANDING e il SID del dominio. Sono i parametri richiesti da ogni passaggio successivo.
+3. G-02 valida l'elenco delle utenze reali interrogando il KDC, senza incrementare il contatore dei tentativi falliti. Lo stesso passaggio esclude AS-REP Roasting e Kerberoasting come vie praticabili, il che determina la scelta del password spray.
+4. G-03 stabilisce che il dominio non impone complessità e che il blocco dura cinque minuti. Definisce il budget dell'attacco: quattro tentativi per utenza ogni cinque minuti.
+5. G-04 converte quel budget in una credenziale valida: lord.varys ha una password derivata dal proprio nome utente. Da qui l'attaccante è un utente di dominio.
+6. Con quella credenziale la raccolta BloodHound espone le relazioni della directory e porta a G-05: lord.varys ha GenericAll sul gruppo Domain Admins.
+7. G-05 viene sfruttato aggiungendo l'utenza al gruppo. Il privilegio massimo del dominio è ottenuto in un passaggio, partendo da un'utenza ordinaria.
+8. G-06 dimostra l'impatto: la replica della directory restituisce tutte le credenziali del dominio, compreso l'hash di krbtgt, che rende la compromissione persistente oltre il reset delle password.
+
+Il punto di rottura della catena è il passaggio 5. Senza una credenziale di dominio il permesso del passaggio 6 non è né leggibile né sfruttabile, e i finding da G-01 a G-03 restano informazioni senza conseguenze.
+
+---
+
+## 7. Raccomandazioni
+
+**Immediate, entro giorni**
+
+Rimuovere il permesso GenericAll di lord.varys dalla DACL del gruppo Domain Admins, verificando anche AdminSDHolder per evitare che SDProp lo ripropaghi (G-05). Ruotare due volte la password di krbtgt a distanza di tempo e resettare le credenziali privilegiate, perché finché l'hash estratto è valido l'accesso resta possibile (G-06). Cambiare la password di lord.varys (G-04).
+
+**Breve termine, entro settimane**
+
+Censire i principal che detengono i diritti estesi di replica sull'oggetto del dominio e ridurli a controller e account di servizio previsti (G-06). Attivare complessità e lunghezza minima di quindici caratteri, con lista di password vietate che copra le variazioni su nome utente e nome dominio; alzare la durata del blocco e includere gli account amministrativi (G-03, G-04). Negare l'enumerazione anonima via SMB e limitare l'esposizione di 139 e 445 tramite segmentazione (G-01).
+
+**Strutturali, sul processo**
+
+I due finding critici non sono difetti di software e nessuna scansione di vulnerabilità li avrebbe segnalati: sono un permesso delegato a mano e mai revocato, più la sua conseguenza. Serve una raccolta BloodHound pianificata con confronto tra esecuzioni successive, così che una nuova delega su un gruppo privilegiato emerga come differenza invece di restare in posizione per anni.
+
+Il secondo tema è la rilevazione. Tre dei sei passaggi della catena, l'enumerazione anonima, l'enumerazione Kerberos e il DCSync, sono passati senza lasciare una traccia utilizzabile, pur generando eventi che Windows registra. Vanno portati a monitoraggio l'evento 4662 filtrato sui GUID dei diritti di replica, il volume di 4768 in errore per indirizzo di origine, e il 4728 sui gruppi privilegiati. Senza questi, un attacco identico resta invisibile anche ripetendolo
+
+---
+
+## 8. Appendice
+
+Output integrali dei comandi, conservati in locale:
+
+nmap-dc01.txt
+enum4linux.txt
+asrep.txt (enumerazione Kerberos ed esclusione AS-REP Roasting)
+daclread-domainadmins.txt (DACL completa, 222 righe)
+pwned-varys.txt
+dcsync.txt (dump completo, 16 utenze)
+20260921173210_bloodhound.zip (raccolta BloodHound)
