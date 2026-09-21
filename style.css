@@ -407,3 +407,14 @@ body::after {
                     rgba(0,0,0,0.18) 100%);
     }
 }
+
+/* ==================== report ==================== */
+
+.report-meta {
+    font-size: 0.85em;
+    color: #444;
+    line-height: 1.7;
+    border-left: 2px solid #ddd;
+    padding-left: 12px;
+    margin: 0 0 18px 0;
+}

@@ -1,0 +1,490 @@
+Penetration Test Report — OWASP NodeGoat
+
+Autore: Christian Torchia
+Data: settembre 2026
+
+---
+
+## 1. Sintesi
+
+È stata valutata un'applicazione web di gestione di piani di previdenza integrativa, in ambiente di laboratorio, con lo scopo di verificare quanto un utente registrato possa uscire dai propri permessi e raggiungere dati e funzioni che non gli appartengono.
+
+Sono state individuate nove debolezze: due critiche, due di gravità alta, tre medie, una bassa e una di rilievo puramente informativo.
+
+Il rischio principale è che un qualsiasi utente registrato può leggere e modificare i dati previdenziali degli altri dipendenti, inclusi quelli dell'amministratore, e far eseguire al database codice che non era previsto. In concreto: chiunque abbia un account può prendersi il contenuto dell'archivio
+
+Interventi in ordine di priorità: validare il parametro di ricerca sulla pagina delle allocazioni, che è il punto da cui si arriva al database, e introdurre un controllo di autorizzazione lato server sulle pagine amministrative e sulle risorse indicizzate per identificativo.
+
+---
+
+## 2. Scope e limiti
+
+Target: http://localhost:4000 (OWASP NodeGoat, istanza Docker locale)
+Fuori scope: qualunque altro host, il container MongoDB di appoggio, il sistema operativo dell'host.
+Tipologia: grey box, interno. Sono state usate credenziali di un utente registrato senza privilegi amministrativi, fornite dal seed dell'applicazione, per simulare la posizione di un dipendente.
+Durata: una finestra di tre ore.
+Autorizzazione: applicazione di laboratorio distribuita da OWASP per scopi formativi, installata in locale. Nessun sistema di terzi e nessun dato reale sono stati coinvolti.
+
+È un esercizio che mi sono dato da solo, non un incarico. Il formato è quello di un report di penetration test perché è il formato in cui questo lavoro si consegna, e volevo provare a scriverne uno per intero invece di fermarmi alla lista dei bug trovati.
+
+Limitazioni: valutazione a tempo, la copertura non è esaustiva. Non è stato eseguito test di denial of service. Il numero di finding era fissato a un massimo di otto a priori; il nono è emerso durante la verifica di un finding precedente ed è stato incluso.
+
+### Sull'ambiente
+
+NodeGoat è un'applicazione web deliberatamente vulnerabile mantenuta da OWASP, la fondazione no profit dietro agli standard più usati nella sicurezza applicativa. Riproduce un gestionale Node.js ed Express con database MongoDB e contiene, per costruzione, le classi di difetti della OWASP Top 10, la lista delle dieci categorie di rischio applicativo più rilevanti che la fondazione pubblica e aggiorna periodicamente. La scelta di MongoDB non è accessoria: sposta il problema dell'injection dal SQL alla valutazione di JavaScript lato server, che è il caso trattato nel finding F-08.
+
+---
+
+## 3. Metodologia
+
+Riferimento: OWASP Web Security Testing Guide, con le categorie di rischio della OWASP Top 10 come criterio di copertura.
+
+Fasi eseguite: ricognizione della superficie di attacco, enumerazione degli endpoint, verifica dei controlli di autenticazione e sessione, verifica dei controlli di autorizzazione, ricerca di injection, sfruttamento.
+
+Aree coperte, in quest'ordine: autenticazione e registrazione, gestione della sessione, controllo degli accessi, injection, cross-site scripting, configurazione.
+
+Strumenti: curl, gobuster 2.0.1, SecLists, browser con ispezione delle richieste.
+
+Criterio di gravità: CVSS v3.1.
+
+Nota sulle prove: gli attacchi sono stati condotti da riga di comando, quindi la prova primaria di ogni finding è l'output integrale del comando. Le catture di schermo sono allegate solo dove l'evidenza è l'effetto visibile nell'interfaccia.
+
+---
+
+## 4. Quadro dei risultati
+
+| ID | Titolo | Gravità | CVSS |
+|---|---|---|---|
+| F-08 | Server-side JavaScript injection nel filtro allocazioni | Critica | 8.8 |
+| F-06 | Pagina amministrativa accessibile e scrivibile da utente normale | Critica | 8.8 |
+| F-04 | Assenza di lockout e di rate limiting sull'autenticazione | Alta | 7.5 |
+| F-07 | Accesso ai dati di altri utenti per manipolazione dell'identificativo | Alta | 6.5 |
+| F-09 | Cross-site scripting persistente nei campi del profilo | Media | 5.4 |
+| F-01 | User enumeration dalla risposta di login | Media | 5.3 |
+| F-02 | Cookie di sessione privo degli attributi Secure e SameSite | Bassa | 3.7 |
+| F-03 | Security header assenti e stack tecnologico esposto | Bassa | 3.7 |
+| F-05 | Endpoint autenticati enumerabili senza credenziali | Informativa | n/a |
+
+---
+
+## 5. Dettaglio dei risultati
+
+### F-08 Server-side JavaScript injection nel filtro allocazioni
+
+Gravità: Critica
+CVSS v3.1: 8.8 (AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H)
+Componente: GET /allocations/{userId}, parametro threshold
+
+**Descrizione**
+
+Il campo "Stocks Threshold" della pagina allocazioni viene concatenato dentro una clausola $where di MongoDB. $where non è un filtro dichiarativo: è un'espressione JavaScript che il motore del database valuta per ogni documento della collection. Il valore inviato dall'utente finisce quindi in un contesto di esecuzione, non di confronto. Il campo del form non ha né validazione né vincolo di tipo, nonostante il codice sorgente contenga un commento che segnala il problema e una versione commentata dell'input con type="number" e limiti 0-99.
+
+**Prova**
+
+Prima il differenziale, per stabilire che il parametro filtra davvero:
+
+threshold=0  -> 1 risultato
+threshold=99 -> 0 risultati
+
+Poi l'iniezione, chiudendo la stringa e imponendo un valore di ritorno:
+
+curl -s -b sessione.jar -G --data-urlencode "threshold=0';return true;var x='" "http://localhost:4000/allocations/2"
+
+-> 3 risultati
+
+Il filtro viene neutralizzato e tornano tutti i documenti. L'espressione iniettata è valutata lato server: return true non è un dato, è codice.
+
+Enumerazione dei campi del documento, per delimitare cosa è raggiungibile dal contesto di esecuzione:
+
+this.userId    -> presente
+this.stocks    -> presente
+this.funds     -> presente
+this.bonds     -> presente
+this._id       -> presente
+this.threshold -> assente
+
+Lettura selettiva dei documenti di altri utenti, dall'endpoint dell'utente corrente:
+
+threshold=0';return this.userId=='1';var x='  -> 1 documento
+threshold=0';return this.userId=='2';var x='  -> 1 documento
+threshold=0';return this.userId=='3';var x='  -> 1 documento
+
+<div class="writeup-image">
+  <img src="/assets/reports/F-08-nosql-injection.png" alt="Iniezione JavaScript nel filtro allocazioni">
+  <div class="img-caption">/allocations/1 con i dati dell'amministratore, letti da una sessione ordinaria</div>
+</div>
+
+**Impatto**
+
+Un utente registrato può far valutare al database espressioni JavaScript arbitrarie nel contesto della collection. Questo permette di leggere in modo selettivo i documenti di qualunque utente, un carattere o un campo alla volta, e di costruire condizioni booleane per esfiltrare valori che l'interfaccia non espone. La stessa primitiva, se applicata a $where su collection diverse, estende la lettura oltre le allocazioni.
+
+Il punteggio tiene conto del fatto che serve un account valido. Se la pagina fosse raggiungibile senza autenticazione il vettore diventerebbe AV:N/AC:L/PR:N e la gravità salirebbe a 9.8.
+
+**Rimedio**
+
+Sull'input: vincolare threshold a intero tra 0 e 99 lato server, rifiutando la richiesta invece di normalizzarla. La validazione lato browser presente nel codice commentato serve all'usabilità, non alla sicurezza, e va aggiunta in aggiunta e non in sostituzione.
+
+Sulla query: sostituire la clausola $where con un operatore di confronto dichiarativo, { stocks: { $gt: soglia } }, che non apre alcun contesto di esecuzione. Questo è il rimedio strutturale: finché esiste un $where costruito per concatenazione, la validazione è l'unica barriera e basta una regressione per riaprire il buco.
+
+Lato configurazione, disabilitare l'esecuzione di JavaScript sul server MongoDB con security.javascriptEnabled: false in mongod.conf, che rende inerte $where in tutta l'applicazione.
+
+**Riferimenti**
+
+CWE-943 Improper Neutralization of Special Elements in Data Query Logic
+CWE-94 Improper Control of Generation of Code
+OWASP Top 10 2021 A03 Injection
+Documentazione MongoDB, operatore $where e javascriptEnabled
+
+---
+
+### F-06 Pagina amministrativa accessibile e scrivibile da utente normale
+
+Gravità: Critica
+CVSS v3.1: 8.8 (AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N)
+Componente: GET e POST /benefits
+
+**Descrizione**
+
+L'endpoint /benefits gestisce le date di inizio dei benefit dei dipendenti ed è una funzione amministrativa: non è raggiungibile dal menu di un utente normale. Il controllo che dovrebbe impedirne l'uso è però solo la mancata esposizione del link. Chi conosce il percorso, o lo ricava come descritto in F-05, accede alla pagina con la propria sessione ordinaria, sia in lettura sia in scrittura.
+
+**Prova**
+
+Accesso in lettura con la sessione di un utente senza privilegi:
+
+curl -s -b sessione.jar http://localhost:4000/benefits
+-> HTTP 200, tabella con Employee ID, First Name, Last Name, Benefits Start Date per tutti i dipendenti
+
+Scrittura: dalla stessa pagina, modifica della data di inizio benefit del dipendente con Employee ID 3 (Will Smith) e invio del form.
+
+-> "Benefits updated successfully."
+-> data del dipendente 3 modificata da 11/30/2025 a 02/12/1969
+
+<div class="writeup-image">
+  <img src="/assets/reports/F-06-accesso-benefits.png" alt="Pagina benefits aperta con una sessione non privilegiata">
+  <div class="img-caption">L'elenco dipendenti letto con la sessione di un utente ordinario</div>
+</div>
+
+<div class="writeup-image">
+  <img src="/assets/reports/F-06-scrittura-benefits.png" alt="Conferma di scrittura sulla pagina benefits">
+  <div class="img-caption">La modifica della data di un altro dipendente va a buon fine</div>
+</div>
+
+**Impatto**
+
+Compromissione dell'integrità dei dati amministrativi da parte di qualunque utente registrato. La data di inizio dei benefit determina la maturazione di una prestazione previdenziale: chi la modifica altera una posizione contrattuale, per sé o per altri, e la modifica va a buon fine senza passare da alcun controllo. Sul lato riservatezza, l'elenco completo dei dipendenti diventa leggibile.
+
+Questo finding è quello con il costo più alto in un contesto reale, perché la scrittura non lascia all'utente legittimo nessun segnale: non c'è notifica, non c'è traccia visibile nell'interfaccia.
+
+**Rimedio**
+
+Introdurre un controllo di autorizzazione lato server nel gestore della rotta, non nella vista: verificare il ruolo dell'utente in sessione all'ingresso di ogni handler di /benefits, sia GET sia POST, e rispondere 403 se il ruolo non è amministrativo. Il controllo va applicato come middleware sulla rotta, così che l'aggiunta di un nuovo metodo non lo salti per dimenticanza.
+
+Non è sufficiente nascondere la voce di menu, che è il controllo attualmente in essere.
+
+**Riferimenti**
+
+CWE-285 Improper Authorization
+CWE-862 Missing Authorization
+OWASP Top 10 2021 A01 Broken Access Control
+
+---
+
+### F-04 Assenza di lockout e di rate limiting sull'autenticazione
+
+Gravità: Alta
+CVSS v3.1: 7.5 (AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N)
+Componente: POST /login
+
+**Descrizione**
+
+L'applicazione non limita i tentativi di autenticazione falliti. Non esiste blocco temporaneo dell'account, non esiste ritardo progressivo, non esiste limite per indirizzo IP e non esiste CAPTCHA dopo un numero di errori.
+
+**Prova**
+
+Dieci tentativi consecutivi con password errata sullo stesso account, seguiti dal tentativo corretto:
+
+tentativo 1..10: Invalid password
+login valido dopo 10 falliti: HTTP 302
+
+Nessuna risposta diversa dalla prima, nessun rallentamento misurabile, account pienamente utilizzabile subito dopo.
+
+**Impatto**
+
+Un attaccante può provare password in volume contro un account noto. Combinato con F-01, che gli fornisce la lista degli utenti esistenti senza rumore, il costo dell'attacco si riduce alla qualità della wordlist. Su un'applicazione che gestisce posizioni previdenziali, una singola compromissione apre poi tutto il resto della catena descritta nella sezione 6.
+
+**Rimedio**
+
+Blocco temporaneo progressivo dopo cinque tentativi falliti sullo stesso account, con finestra di reset dell'ordine dei minuti, più un limite indipendente per indirizzo IP che copra il caso dello spray su molti account con poche password. Le due misure sono complementari: il solo lockout per account non ferma chi prova una password sola contro mille utenti.
+
+Registrare i tentativi falliti in un log consultabile, perché senza quello l'attacco resta invisibile anche quando fallisce.
+
+**Riferimenti**
+
+CWE-307 Improper Restriction of Excessive Authentication Attempts
+OWASP Top 10 2021 A07 Identification and Authentication Failures
+
+---
+
+### F-07 Accesso ai dati di altri utenti per manipolazione dell'identificativo
+
+Gravità: Alta
+CVSS v3.1: 6.5 (AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:N/A:N)
+Componente: GET /allocations/{userId}
+
+**Descrizione**
+
+L'identificativo dell'utente è passato nel percorso dell'URL e usato come chiave di lettura senza verificare che corrisponda all'utente in sessione. Cambiando il numero si leggono le allocazioni di chiunque
+
+**Prova**
+
+Con la sessione di un utente non privilegiato:
+
+/allocations/1 -> Asset Allocations for Node Goat Admin
+/allocations/2 -> Asset Allocations for John Doe
+/allocations/3 -> Asset Allocations for Will Smith
+
+Ogni pagina riporta la ripartizione completa tra azioni, fondi e obbligazioni dell'utente indicato.
+
+**Impatto**
+
+Lettura della posizione previdenziale di qualunque utente, amministratore compreso, iterando su un intero. La violazione è sia orizzontale, verso utenti di pari livello, sia verticale, verso l'account amministrativo. L'identificativo è sequenziale, quindi l'enumerazione completa dell'archivio è un ciclo.
+
+**Rimedio**
+
+Ricavare l'identificativo dalla sessione lato server e ignorare quello presente nell'URL per la lettura dei dati propri. Dove l'accesso ai dati di terzi è una funzione legittima, come per un ruolo amministrativo, verificare esplicitamente il ruolo prima della query.
+
+Passare a identificativi non sequenziali riduce l'enumerabilità, ma da solo non è un rimedio: rende l'attacco più lento, non impossibile.
+
+**Riferimenti**
+
+CWE-639 Authorization Bypass Through User-Controlled Key
+OWASP Top 10 2021 A01 Broken Access Control
+
+---
+
+### F-09 Cross-site scripting persistente nei campi del profilo
+
+Gravità: Media
+CVSS v3.1: 5.4 (AV:N/AC:L/PR:L/UI:R/S:C/C:L/I:L/A:N)
+Componente: POST /profile, campi firstName e lastName
+
+**Descrizione**
+
+I campi del profilo vengono salvati senza sanificazione e ristampati nelle pagine successive senza codifica delle entità HTML. Il contenuto è persistente: viene riproposto a ogni caricamento, non solo nella risposta immediata.
+
+**Prova**
+
+Invio del payload nel campo firstName:
+
+curl -s -b sessione.jar -X POST http://localhost:4000/profile -d "firstName=<script>alert(document.cookie)</script>&lastName=Test&..."
+-> HTTP 200
+
+Rilettura della pagina profilo:
+
+-> <script>alert(document.cookie)</script>
+
+Il tag torna integro, non codificato. Al caricamento della pagina nel browser lo script viene eseguito. Il valore inviato in lastName compare inoltre nella barra di navigazione di tutte le pagine autenticate, quindi il punto di riflessione non è solo il profilo.
+
+**Impatto**
+
+Esecuzione di JavaScript nel contesto dell'applicazione e nel browser di chi visualizza il profilo. Poiché il valore compare nella navigazione condivisa e nelle tabelle amministrative viste in F-06, un payload salvato da un utente ordinario raggiunge anche l'amministratore che apre quelle pagine. Il cookie di sessione ha HttpOnly, quindi non è leggibile via script, ma questo limita il furto della sessione e non le azioni compiute a nome della vittima.
+
+**Rimedio**
+
+Codificare l'output in base al contesto di inserimento, usando l'escaping del motore di template invece dell'inserimento diretto, e validare l'input in ingresso con una whitelist di caratteri per i campi nome. Aggiungere una Content Security Policy che vieti gli script inline, che è la misura che contiene il difetto anche quando una singola riflessione sfugge.
+
+**Riferimenti**
+
+CWE-79 Improper Neutralization of Input During Web Page Generation
+OWASP Top 10 2021 A03 Injection
+
+---
+
+### F-01 User enumeration dalla risposta di login
+
+Gravità: Media
+CVSS v3.1: 5.3 (AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N)
+Componente: POST /login
+
+**Descrizione**
+
+La risposta al login fallito distingue il caso di utente inesistente da quello di password errata, con due messaggi diversi. La differenza permette di sapere se un'utenza esiste senza averne la password.
+
+**Prova**
+
+Tre tentativi con la stessa password errata:
+
+admin          -> Invalid password
+user1          -> Invalid password
+nonesiste_xyz  -> Invalid username
+
+<div class="writeup-image">
+  <img src="/assets/reports/F-01-user-enumeration.png" alt="Due messaggi di errore diversi sul login">
+  <div class="img-caption">Il messaggio cambia a seconda che l'utenza esista o no</div>
+</div>
+
+**Impatto**
+
+Un attaccante costruisce la lista delle utenze valide prima di tentare qualsiasi password. Il valore del finding non è nella sua gravità isolata, che è contenuta, ma nel fatto che rende efficiente F-04: senza lockout e con la lista degli utenti reali l'attacco a dizionario diventa praticabile.
+
+**Rimedio**
+
+Un unico messaggio per entrambi i casi, del tipo "credenziali non valide", e tempo di risposta uniforme tra i due rami, perché altrimenti la differenza si sposta dal testo alla latenza. Verificare anche il flusso di registrazione e quello di recupero password, che comunemente reintroducono la stessa distinzione.
+
+**Riferimenti**
+
+CWE-204 Observable Response Discrepancy
+OWASP Top 10 2021 A07 Identification and Authentication Failures
+
+---
+
+### F-02 Cookie di sessione privo degli attributi Secure e SameSite
+
+Gravità: Bassa
+CVSS v3.1: 3.7 (AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:N/A:N)
+Componente: intestazione Set-Cookie su POST /login
+
+**Descrizione**
+
+Il cookie di sessione connect.sid viene emesso con Path e HttpOnly ma senza Secure e senza SameSite.
+
+**Prova**
+
+set-cookie: connect.sid=s%3AtUOV4sXup...; Path=/; HttpOnly
+
+HttpOnly è presente e protegge dalla lettura via script. Mancano Secure, che impedirebbe l'invio su canale non cifrato, e SameSite, che limiterebbe l'invio nelle richieste cross-site.
+
+**Impatto**
+
+Senza Secure il cookie viaggia anche su HTTP, quindi una sessione può essere intercettata su rete non fidata o in presenza di un downgrade. Senza SameSite le richieste provenienti da altri siti portano con sé la sessione, che è il presupposto degli attacchi CSRF sulle azioni di scrittura, incluse quelle di F-06.
+
+**Rimedio**
+
+Impostare nella configurazione della sessione secure: true, sameSite: 'strict' e httpOnly: true, e servire l'applicazione esclusivamente su HTTPS, perché secure su un servizio raggiungibile in chiaro rende il cookie inutilizzabile senza risolvere nulla.
+
+**Riferimenti**
+
+CWE-614 Sensitive Cookie Without Secure Attribute
+CWE-1275 Sensitive Cookie with Improper SameSite Attribute
+OWASP Top 10 2021 A05 Security Misconfiguration
+
+---
+
+### F-03 Security header assenti e stack tecnologico esposto
+
+Gravità: Bassa
+CVSS v3.1: 3.7 (AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:N/A:N)
+Componente: intestazioni di risposta HTTP, tutte le pagine
+
+**Descrizione**
+
+Le risposte dichiarano il framework applicativo e non contengono nessuna delle intestazioni di sicurezza attese.
+
+**Prova**
+
+HTTP/1.1 200 OK
+X-Powered-By: Express
+Content-Type: text/html; charset=utf-8
+Content-Length: 7208
+ETag: W/"1c28-jzMKoc+DPSvVfJwC7jYRDNnpaUs"
+set-cookie: connect.sid=...; Path=/; HttpOnly
+Date: Mon, 21 Sep 2026 13:21:35 GMT
+Connection: keep-alive
+
+Assenti: Content-Security-Policy, X-Frame-Options, X-Content-Type-Options, Strict-Transport-Security, Referrer-Policy.
+
+**Impatto**
+
+X-Powered-By indica il framework e restringe il campo delle vulnerabilità note da provare. L'assenza di Content-Security-Policy è quella che pesa davvero, perché togli l'unica misura che contiene l'esecuzione di script iniettati come in F-09. L'assenza di X-Frame-Options lascia le pagine incorporabili in un iframe, che è il presupposto del clickjacking sulle azioni di scrittura.
+
+**Rimedio**
+
+Aggiungere il middleware helmet alla catena Express, che imposta le intestazioni mancanti con valori ragionevoli, e rimuovere X-Powered-By con app.disable('x-powered-by'). La Content-Security-Policy va poi adattata all'applicazione invece di lasciata al valore predefinito, altrimenti si finisce per allentarla fino a renderla inerte.
+
+**Riferimenti**
+
+CWE-200 Exposure of Sensitive Information
+CWE-693 Protection Mechanism Failure
+OWASP Top 10 2021 A05 Security Misconfiguration
+
+---
+
+### F-05 Endpoint autenticati enumerabili senza credenziali
+
+Gravità: Informativa
+CVSS v3.1: n/a
+Componente: struttura delle rotte dell'applicazione
+
+**Descrizione**
+
+Le rotte che richiedono autenticazione rispondono 302 verso il login, mentre quelle inesistenti rispondono 404. La differenza rende la mappa dell'applicazione ricostruibile senza avere un account.
+
+**Prova**
+
+gobuster -m dir -u http://localhost:4000 -w DirBuster-2007_directory-list-2.3-medium.txt -t 50 -s 200,204,301,302,307,401,403
+
+Endpoint autenticati individuati: /dashboard, /profile, /contributions, /allocations, /memos, /research, /learn, /benefits. Le rotte rispondono inoltre in modo case-insensitive, quindi ogni percorso emerge in più varianti.
+
+**Impatto**
+
+Nessun impatto diretto. Il valore è strumentale: è così che /benefits è stato individuato, e da lì è partito F-06. Viene riportato per rendere la catena riproducibile, non come difetto da correggere in sé.
+
+**Rimedio**
+
+Nessuna azione necessaria: la distinzione tra 302 e 404 è un comportamento normale e uniformarla comporterebbe più costi che benefici. La misura utile è quella di F-06, cioè che la conoscenza di un percorso non dia accesso a nulla.
+
+**Riferimenti**
+
+CWE-200 Exposure of Sensitive Information
+OWASP WSTG-INFO-07 Map Execution Paths
+
+---
+
+## 6. Catena d'attacco
+
+La sequenza sotto è quella effettivamente percorsa, da nessuna credenziale al controllo dei dati dell'archivio.
+
+1. F-01 fornisce la lista delle utenze valide, distinguendo "Invalid password" da "Invalid username", senza bisogno di alcuna credenziale.
+2. F-04 rende praticabile l'attacco a dizionario su quelle utenze: nessun lockout, nessun rate limiting, nessuna traccia.
+3. Ottenuto un account ordinario, F-05 espone la mappa delle rotte e con essa l'endpoint amministrativo /benefits.
+4. F-06 trasforma quella conoscenza in accesso: lettura dell'elenco dipendenti e, sul medesimo endpoint, scrittura della data di inizio benefit di un altro dipendente, andata a buon fine.
+5. F-07 estende la lettura ai dati previdenziali di ogni utente, amministratore incluso, iterando l'identificativo nell'URL.
+6. F-08 chiude la catena: dal parametro di filtro della stessa pagina si fa valutare al database JavaScript arbitrario, ottenendo lettura selettiva dei documenti indipendentemente da quale utente sia indicato nell'URL.
+
+F-09 è laterale ma si innesta al punto 4: il valore salvato nel profilo da un utente ordinario compare nella tabella amministrativa, quindi il payload raggiunge l'amministratore che apre quella pagina.
+
+F-02 e F-03 non sono passaggi della catena: sono le condizioni che ne aumentano la resa, riducendo il costo del furto di sessione e togliendo la Content Security Policy che avrebbe contenuto F-09.
+
+---
+
+## 7. Raccomandazioni
+
+**Immediate, entro giorni**
+
+Sostituire la clausola $where della pagina allocazioni con un operatore di confronto dichiarativo e validare threshold lato server come intero 0-99 (F-08). Aggiungere un controllo di autorizzazione come middleware sulle rotte /benefits (F-06). Disabilitare l'esecuzione di JavaScript sul server MongoDB.
+
+**Breve termine, entro settimane**
+
+Ricavare l'identificativo utente dalla sessione invece che dall'URL su tutte le rotte indicizzate (F-07). Introdurre lockout progressivo e rate limiting per IP sull'autenticazione, con log dei tentativi falliti (F-04). Uniformare i messaggi di errore del login (F-01). Applicare escaping contestuale nell'output e aggiungere helmet con una Content Security Policy adattata (F-09, F-03). Impostare secure e sameSite sul cookie di sessione e servire l'applicazione solo su HTTPS (F-02).
+
+**Strutturali, sul processo**
+
+I due finding critici hanno la stessa origine: il controllo si trova nel posto sbagliato. In F-06 sta nella vista invece che nell'handler, in F-08 nel browser invece che sul server. Non è un problema di patch ma di dove l'applicazione decide. Vanno introdotti un punto unico di autorizzazione attraversato da ogni rotta e una regola di progetto che vieti la costruzione di query per concatenazione di stringhe, con verifica in code review.
+
+Il commento nel codice sorgente che segnala il difetto di F-08 e propone il rimedio, lasciato commentato, è il secondo elemento di processo: un difetto conosciuto e non corretto è un difetto che nessuno rivedrà più
+
+---
+
+## 8. Appendice
+
+Output integrali dei comandi, uno per finding, conservati in locale:
+
+F-01-user-enum.txt
+F-02-cookie.txt
+F-03-headers.txt
+F-04-bruteforce.txt
+F-05-gobuster.txt, F-05-gobuster-deep.txt
+F-06-benefits-user1.html
+F-07-idor.txt
+F-08-nosqli.txt, F-08-dump-multiutente.txt
+F-09-xss.txt

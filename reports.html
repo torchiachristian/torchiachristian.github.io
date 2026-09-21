@@ -1,0 +1,47 @@
+---
+layout: base
+title: Reports
+lang: en
+---
+
+<h1>Reports</h1>
+<p data-lang="it">Report di penetration test scritti per intero su ambienti di laboratorio, nel formato in cui questo lavoro si consegna: scope, metodologia, finding con punteggio CVSS, catena d'attacco e raccomandazioni. Sono esercizi che mi sono dato da solo, non incarichi.</p>
+<p data-lang="en">Penetration test reports written in full against lab environments, in the format this work is actually delivered in: scope, methodology, findings with CVSS scoring, attack chain and recommendations. These are exercises I set myself, not engagements.</p>
+
+{% assign items = site.reports | sort: "date" | reverse %}
+
+<div data-lang="it">
+  {% for r in items %}{% if r.lang == "it" %}
+  <div class="writeup-entry">
+    <div class="writeup-header">
+      <h3><a href="{{ r.url }}">{{ r.title }}</a></h3>
+    </div>
+    <div class="writeup-meta">
+      {{ r.date | date: "%Y-%m" }}{% if r.approccio %} &nbsp;|&nbsp; {{ r.approccio }}{% endif %}{% if r.findings %} &nbsp;|&nbsp; {{ r.findings }}{% endif %}
+    </div>
+    {% if r.tags %}<div class="writeup-tags">{% for t in r.tags %}<span>{{ t }}</span>{% endfor %}</div>{% endif %}
+    {% if r.summary %}<p class="writeup-summary">{{ r.summary }}</p>{% endif %}
+    <div class="writeup-download">
+      <a href="{{ r.url }}">leggi &rarr;</a>{% if r.txt %} &nbsp;&middot;&nbsp; <a href="{{ r.txt }}" target="_blank">&darr; .txt</a>{% endif %}
+    </div>
+  </div>
+  {% endif %}{% endfor %}
+</div>
+
+<div data-lang="en">
+  {% for r in items %}{% if r.lang == "en" %}
+  <div class="writeup-entry">
+    <div class="writeup-header">
+      <h3><a href="{{ r.url }}">{{ r.title }}</a></h3>
+    </div>
+    <div class="writeup-meta">
+      {{ r.date | date: "%Y-%m" }}{% if r.approccio %} &nbsp;|&nbsp; {{ r.approccio }}{% endif %}{% if r.findings %} &nbsp;|&nbsp; {{ r.findings }}{% endif %}
+    </div>
+    {% if r.tags %}<div class="writeup-tags">{% for t in r.tags %}<span>{{ t }}</span>{% endfor %}</div>{% endif %}
+    {% if r.summary %}<p class="writeup-summary">{{ r.summary }}</p>{% endif %}
+    <div class="writeup-download">
+      <a href="{{ r.url }}">read &rarr;</a>{% if r.txt %} &nbsp;&middot;&nbsp; <a href="{{ r.txt }}" target="_blank">&darr; .txt</a>{% endif %}
+    </div>
+  </div>
+  {% endif %}{% endfor %}
+</div>

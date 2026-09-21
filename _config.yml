@@ -11,6 +11,8 @@ kramdown:
 collections:
   writeups:
     output: true
+  reports:
+    output: true
 
 exclude:
   - PUBBLICARE.md
